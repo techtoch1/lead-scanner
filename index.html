@@ -172,6 +172,8 @@ body.apollo-on .apollo-only { display: revert; }
 .apollo-search-only { display: none !important; }
 body.apollo-on.apollo-search .apollo-search-only { display: revert !important; }
 body.server-mode #apollo-settings { display: none; }
+.signout { display: none; margin-left: 16px; color: var(--accent); font-weight: 700; text-transform: none; letter-spacing: 0; }
+body.server-mode .signout { display: inline; }
 </style>
 </head>
 <body>
@@ -181,7 +183,7 @@ body.server-mode #apollo-settings { display: none; }
       <img class="logo-light" src="logo-light.svg" alt="ALIGNED">
       <img class="logo-dark" src="logo-dark.svg" alt="ALIGNED">
     </a>
-    <span class="tag">Internal tool</span>
+    <span class="tag">Internal tool<a class="signout" href="/logout">Sign out</a></span>
   </header>
 
   <h1>Lead Scanner</h1>
@@ -814,6 +816,7 @@ body.server-mode #apollo-settings { display: none; }
     } catch (e) {
       throw new Error(serverMode ? 'Can\'t reach the server.' : 'Can\'t reach the Worker. Check the address and its ALLOWED_ORIGIN setting.');
     }
+    if (res.status === 401 && serverMode) { location.href = '/login'; throw new Error('Signed out.'); }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Worker error ' + res.status);
     return data;

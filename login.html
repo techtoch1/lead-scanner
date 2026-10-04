@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Sign in | Lead Scanner</title>
+<link rel="icon" href="/favicon.webp" type="image/webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --poseidon: #187bcd;
+  --bg: #f5f8fa;
+  --surface: #ffffff;
+  --text: #333334;
+  --text-muted: #6b6f72;
+  --heading: #187bcd;
+  --accent: #187bcd;
+  --border: #c3ced3;
+  --error: #b91c1c;
+  --error-bg: #fdecec;
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1c1c1d; --surface: #262627; --text: #eef1f2; --text-muted: #c3ced3;
+    --heading: #b7daea; --accent: #4a9ede; --border: #4a4a4c; --error: #f87171; --error-bg: #3b1c1c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1c1c1d; --surface: #262627; --text: #eef1f2; --text-muted: #c3ced3;
+  --heading: #b7daea; --accent: #4a9ede; --border: #4a4a4c; --error: #f87171; --error-bg: #3b1c1c;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-sans);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px;
+}
+.card {
+  width: 100%; max-width: 400px; background: var(--surface); border: 1px solid var(--border);
+  border-top: 4px solid var(--poseidon); padding: 36px 32px 32px;
+}
+.logo { display: block; height: 26px; width: auto; margin-bottom: 28px; }
+.logo-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-light { display: none; }
+  :root:not([data-theme="light"]) .logo-dark { display: block; }
+}
+:root[data-theme="dark"] .logo-light { display: none; }
+:root[data-theme="dark"] .logo-dark { display: block; }
+h1 { color: var(--heading); font-size: 26px; font-weight: 700; margin: 0 0 6px; }
+.sub { color: var(--text-muted); font-weight: 300; margin: 0 0 24px; }
+.rule { display: flex; align-items: center; margin: 0 0 24px; }
+.rule::before { content: ""; flex: 1; height: 1px; background: var(--text); opacity: .35; }
+.rule::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+label { display: block; font-size: 13px; font-weight: 700; margin: 0 0 6px; }
+input {
+  width: 100%; padding: 11px 12px; margin: 0 0 18px; font: 15px var(--font-sans);
+  color: var(--text); background: var(--surface); border: 1px solid var(--border);
+}
+input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button {
+  width: 100%; padding: 12px; margin-top: 4px; border: 1px solid var(--poseidon); background: var(--poseidon);
+  color: #fff; font: 700 15px var(--font-sans); cursor: pointer;
+}
+button:hover { filter: brightness(1.08); }
+.error { background: var(--error-bg); color: var(--error); font-size: 14px; padding: 10px 12px; margin: 0 0 18px; }
+.error:empty { display: none; }
+footer { margin-top: 20px; font-size: 13px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+  <main class="card">
+    <img class="logo logo-light" src="/logo-light.svg" alt="ALIGNED">
+    <img class="logo logo-dark" src="/logo-dark.svg" alt="ALIGNED">
+    <h1>Lead Scanner</h1>
+    <p class="sub">Sign in to continue.</p>
+    <div class="rule" aria-hidden="true"></div>
+    <div class="error" role="alert"><!--ERROR--></div>
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="<!--NEXT-->">
+      <label for="username">Username</label>
+      <input id="username" name="username" value="<!--USER-->" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+  <footer>Aligned · Internal tool</footer>
+</body>
+</html>

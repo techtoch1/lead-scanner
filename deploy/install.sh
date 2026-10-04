@@ -5,8 +5,7 @@
 #   sudo bash ~/lead-scanner/deploy/install.sh
 #
 # What it adds (and nothing else):
-#   /etc/lead-scanner.env                     Apollo API key, readable by root only
-#   /etc/nginx/lead-scanner.htpasswd          site login
+#   /etc/lead-scanner.env                     Apollo key + sign-in settings, root only
 #   /etc/systemd/system/lead-scanner.service  runs server/server.js on 127.0.0.1:3010
 #   /etc/nginx/sites-available/lead-scanner.conf (+ link in sites-enabled)
 #   an HTTPS certificate for the domain, via certbot
@@ -19,7 +18,7 @@ PORT="${PORT:-3010}"
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_USER="${SUDO_USER:-$(stat -c %U "$APP_DIR")}"
 ENV_FILE=/etc/lead-scanner.env
-HTPASSWD=/etc/nginx/lead-scanner.htpasswd
+OLD_HTPASSWD=/etc/nginx/lead-scanner.htpasswd   # from versions that used a browser popup login
 UNIT=/etc/systemd/system/lead-scanner.service
 SITE=/etc/nginx/sites-available/lead-scanner.conf
 LINK=/etc/nginx/sites-enabled/lead-scanner.conf
@@ -27,6 +26,13 @@ LINK=/etc/nginx/sites-enabled/lead-scanner.conf
 say()  { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 fail() { printf '\n\033[1;31mStopped: %s\033[0m\n' "$*" >&2; exit 1; }
 ask_yes() { local a; read -rp "$1 [y/N] " a; [[ "$a" =~ ^[Yy]$ ]]; }
+env_get() { [[ -f "$ENV_FILE" ]] && sed -n "s/^$1=//p" "$ENV_FILE" | tail -1 || true; }
+# Set KEY=VALUE in the env file, keeping the other lines. Values never contain newlines.
+env_set() {
+  local tmp; tmp="$(mktemp /etc/lead-scanner.env.XXXXXX)"
+  { [[ -f "$ENV_FILE" ]] && grep -v "^$1=" "$ENV_FILE" || true; printf '%s=%s\n' "$1" "$2"; } > "$tmp"
+  chown root:root "$tmp"; chmod 600 "$tmp"; mv "$tmp" "$ENV_FILE"
+}
 
 [[ $EUID -eq 0 ]] || fail "run it with sudo: sudo bash $0"
 [[ -f "$APP_DIR/server/server.js" ]] || fail "can't find server/server.js next to this script."
@@ -50,24 +56,24 @@ fi
 echo "OK."
 
 say "Apollo API key"
-if [[ -s "$ENV_FILE" ]] && grep -q '^APOLLO_API_KEY=.' "$ENV_FILE" && ! ask_yes "A key is already saved. Replace it?"; then
+if [[ -n "$(env_get APOLLO_API_KEY)" ]] && ! ask_yes "A key is already saved. Replace it?"; then
   echo "Keeping the saved key."
 else
   read -rsp "Paste your Apollo API key (it won't show on screen), then press Enter: " KEY; echo
   KEY="$(printf '%s' "$KEY" | tr -d '[:space:]')"
   [[ -n "$KEY" ]] || fail "no key entered."
-  ( umask 077; printf 'APOLLO_API_KEY=%s\n' "$KEY" > "$ENV_FILE" )
-  chown root:root "$ENV_FILE"; chmod 600 "$ENV_FILE"
+  env_set APOLLO_API_KEY "$KEY"
   unset KEY
   echo "Saved to $ENV_FILE (root only)."
 fi
 
-say "Site login (protects the page and your Apollo credits)"
-if [[ -s "$HTPASSWD" ]] && ! ask_yes "A login already exists. Replace it?"; then
-  echo "Keeping the existing login."
+say "Sign-in (protects the page and your Apollo credits)"
+if [[ -n "$(env_get LOGIN_HASH)" ]] && ! ask_yes "A sign-in for '$(env_get LOGIN_USER)' already exists. Replace it?"; then
+  echo "Keeping the existing sign-in."
 else
-  read -rp "Username [aligned]: " WEB_USER; WEB_USER="${WEB_USER:-aligned}"
-  [[ "$WEB_USER" =~ ^[A-Za-z0-9._-]+$ ]] || fail "username can only use letters, numbers, dot, dash and underscore."
+  DEFAULT_USER="$( [[ -s "$OLD_HTPASSWD" ]] && cut -d: -f1 "$OLD_HTPASSWD" | head -1 || echo aligned)"
+  read -rp "Username [$DEFAULT_USER]: " WEB_USER; WEB_USER="${WEB_USER:-$DEFAULT_USER}"
+  [[ "$WEB_USER" =~ ^[A-Za-z0-9._@-]+$ ]] || fail "username can only use letters, numbers, dot, dash, underscore and @."
   while true; do
     read -rsp "Password (at least 10 characters): " P1; echo
     read -rsp "Same password again: " P2; echo
@@ -75,11 +81,14 @@ else
     (( ${#P1} >= 10 )) || { echo "Too short, try again."; continue; }
     break
   done
-  HASH="$(printf '%s' "$P1" | openssl passwd -apr1 -stdin)"
+  HASH="$(printf '%s' "$P1" | "$NODE_BIN" "$APP_DIR/server/hash-password.js")" || fail "couldn't hash the password."
   unset P1 P2
-  printf '%s:%s\n' "$WEB_USER" "$HASH" > "$HTPASSWD"
-  chown root:www-data "$HTPASSWD"; chmod 640 "$HTPASSWD"
-  echo "Login saved for '$WEB_USER'."
+  env_set LOGIN_USER "$WEB_USER"
+  env_set LOGIN_HASH "$HASH"
+  echo "Sign-in saved for '$WEB_USER'."
+fi
+if [[ -z "$(env_get SESSION_SECRET)" ]]; then
+  env_set SESSION_SECRET "$(openssl rand -hex 32)"
 fi
 
 say "Setting up the background service"
@@ -128,8 +137,6 @@ server {
     listen [::]:80;
     server_name __DOMAIN__;
 
-    auth_basic "Lead Scanner";
-    auth_basic_user_file __HTPASSWD__;
     add_header X-Robots-Tag "noindex, nofollow" always;
     client_max_body_size 1m;
 
@@ -143,18 +150,27 @@ server {
     }
 }
 SITE_EOF
-  sed -i "s#__DOMAIN__#$DOMAIN#; s#__HTPASSWD__#$HTPASSWD#; s#__PORT__#$PORT#" "$SITE"
+  sed -i "s#__DOMAIN__#$DOMAIN#; s#__PORT__#$PORT#" "$SITE"
   # Only listen on IPv6 if Nginx already does (avoids a failed config test on IPv4-only hosts).
   ss -ltnH 'sport = :80' | grep -q '\[' || sed -i '/listen \[::\]:80;/d' "$SITE"
 fi
+# Sign-in now happens in the app, so drop the old browser-popup login (this site file only).
+cp "$SITE" /tmp/lead-scanner-site.bak
+sed -i '/auth_basic/d' "$SITE"
 ln -sf "$SITE" "$LINK"
 if ! nginx -t 2>/tmp/lead-scanner-nginx-test.txt; then
   cat /tmp/lead-scanner-nginx-test.txt
+  if grep -q 'ssl_certificate' /tmp/lead-scanner-site.bak; then
+    cp /tmp/lead-scanner-site.bak "$SITE"
+    nginx -t >/dev/null 2>&1 && systemctl reload nginx
+    fail "Nginx config test failed, so the Lead Scanner site was put back as it was. Your other sites were not changed."
+  fi
   rm -f "$LINK"
   fail "Nginx config test failed, so the Lead Scanner site was removed again. Your other sites were not changed."
 fi
 systemctl reload nginx
-echo "Site added."
+rm -f "$OLD_HTPASSWD"
+echo "Site ready."
 
 say "HTTPS certificate"
 if [[ -d "/etc/letsencrypt/live/$DOMAIN" ]] && grep -q 'ssl_certificate' "$SITE"; then
@@ -173,5 +189,5 @@ else
 fi
 
 say "Done"
-echo "Open https://$DOMAIN and log in with the username and password you chose."
+echo "Open https://$DOMAIN and sign in with the username and password you chose."
 echo "To update later: bash $APP_DIR/deploy/update.sh"

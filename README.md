@@ -36,16 +36,17 @@ Results can be filtered, searched and exported to CSV (all, or leads only).
 
 ## Install on your own server (recommended)
 
-Runs the page and the Apollo connection from one small Node.js process behind Nginx, with a site login. The Apollo key stays on the server. Needs Ubuntu with Nginx and Node.js 18+, and a DNS record pointing the domain at the server.
+Runs the page and the Apollo connection from one small Node.js process behind Nginx, with its own sign-in page (passwords are stored as scrypt hashes; sessions last 7 days; 8 wrong attempts lock an address out for 15 minutes). The Apollo key stays on the server. Needs Ubuntu with Nginx and Node.js 18+, and a DNS record pointing the domain at the server.
 
 ```bash
 git clone https://github.com/techtoch1/lead-scanner.git ~/lead-scanner
 sudo bash ~/lead-scanner/deploy/install.sh
 ```
 
-The script asks for your Apollo API key and a username and password for the site, then adds a service on `127.0.0.1:3010`, an Nginx site for `leads.aligned-tech.com` and an HTTPS certificate. It doesn't touch other Nginx sites. Use `DOMAIN=other.example.com PORT=3011 sudo -E bash ...` to change the defaults.
+The script asks for your Apollo API key and a username and password for the sign-in page, then adds a service on `127.0.0.1:3010`, an Nginx site for `leads.aligned-tech.com` and an HTTPS certificate. It doesn't touch other Nginx sites. Use `DOMAIN=other.example.com PORT=3011 sudo -E bash ...` to change the defaults.
 
 - Update: `bash ~/lead-scanner/deploy/update.sh`
+- Change the username or password: `sudo bash ~/lead-scanner/deploy/install.sh` and answer `y` when it asks to replace the sign-in
 - Remove: `sudo bash ~/lead-scanner/deploy/uninstall.sh`
 - Logs: `sudo journalctl -u lead-scanner -n 50`
 
