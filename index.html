@@ -206,6 +206,14 @@ tr.crm-detail > td { background: var(--bg-subtle); padding: 20px; }
 .detail-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 16px; }
 button.danger { border-color: var(--error); color: var(--error); background: transparent; }
 .muted { color: var(--text-muted); }
+.score { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.score b { font-size: 18px; }
+.pill.hot { color: var(--error); background: var(--error-bg); }
+.pill.warm { color: var(--lead); background: var(--lead-bg); }
+.pill.cold { color: var(--text-muted); background: var(--bg-subtle); border: 1px solid var(--border); }
+.score-parts { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.score-parts li { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; border-bottom: 1px dotted var(--border); }
+.score-parts li.zero { color: var(--text-muted); }
 .signout { display: none; margin-left: 16px; color: var(--accent); font-weight: 700; text-transform: none; letter-spacing: 0; }
 body.server-mode .signout { display: inline; }
 </style>
@@ -356,6 +364,11 @@ body.server-mode .signout { display: inline; }
     <div class="toolbar">
       <div class="filters">
         <input type="search" id="crm-search" placeholder="Search companies, industry, notes" aria-label="Search CRM">
+        <select id="crm-sort" aria-label="Sort CRM">
+          <option value="added">Newest first</option>
+          <option value="score">Best leads first</option>
+          <option value="followup">Follow-up date</option>
+        </select>
       </div>
       <div class="row" style="margin:0">
         <button class="secondary" id="crm-export">Export CRM (CSV)</button>
@@ -364,8 +377,8 @@ body.server-mode .signout { display: inline; }
     <p class="msg" id="crm-msg"></p>
     <div class="table-wrap">
       <table id="crm-table">
-        <thead><tr><th>Company</th><th>Status</th><th>Employees</th><th>Industry</th><th>Location</th><th>Email setup</th><th>Follow-up</th><th>Added</th></tr></thead>
-        <tbody id="crm-body"><tr><td colspan="8" class="empty">Nothing in the CRM yet. Tick companies in the scanner and press "Add selected to CRM".</td></tr></tbody>
+        <thead><tr><th>Company</th><th>Score</th><th>Status</th><th>Employees</th><th>Industry</th><th>Location</th><th>Email setup</th><th>Follow-up</th><th>Added</th></tr></thead>
+        <tbody id="crm-body"><tr><td colspan="9" class="empty">Nothing in the CRM yet. Tick companies in the scanner and press "Add selected to CRM".</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -1155,9 +1168,56 @@ body.server-mode .signout { display: inline; }
   const fmtEmployees = n => (n == null || n === '' ? '' : Number(n).toLocaleString());
   const GRADE_PILL = { 'At risk': 'bad', Weak: 'weak', Good: 'good' };
 
+  // Lead score (0-100) from what the CRM already knows. Aimed at Aligned's
+  // offer: companies off Google/Microsoft with weak email security, of a size
+  // that buys IT services, and that can be reached.
+  function leadScore(it) {
+    const sc = it.scan || {}, a = it.apollo || {}, w = it.web || {};
+    const parts = [];
+    const add = (label, pts) => parts.push([label, pts]);
+
+    if (sc.status === 'Lead') add(sc.provider === 'No email set up' ? 'No business email set up' : 'Not on Google or Microsoft (' + (sc.provider || 'other') + ')', 30);
+    else if (sc.status === 'Review') add('Behind an email gateway, provider unclear', 10);
+    else add(sc.status ? 'Already on ' + (sc.provider || 'Google/Microsoft') : 'Not scanned', 0);
+
+    if (sc.grade === 'At risk') add('Email security at risk', 20);
+    else if (sc.grade === 'Weak') add('Weak email security', 12);
+    else add(sc.grade === 'Good' ? 'Good email security' : 'Email security unknown', 0);
+    add(sc.spoofable ? 'Domain can be spoofed' : 'Not spoofable', sc.spoofable ? 10 : 0);
+
+    const n = a.employees == null || a.employees === '' ? null : Number(a.employees);
+    let sizePts, sizeLabel;
+    if (n == null || Number.isNaN(n) || n <= 0) { sizePts = 8; sizeLabel = 'Company size unknown'; }
+    else if (n <= 10) { sizePts = 10; sizeLabel = `${n} employees (very small)`; }
+    else if (n <= 50) { sizePts = 20; sizeLabel = `${n} employees (ideal size)`; }
+    else if (n <= 200) { sizePts = 18; sizeLabel = `${n} employees (good size)`; }
+    else if (n <= 1000) { sizePts = 12; sizeLabel = `${n.toLocaleString()} employees (large)`; }
+    else { sizePts = 5; sizeLabel = `${n.toLocaleString()} employees (enterprise)`; }
+    add(sizeLabel, sizePts);
+
+    const hasContact = Boolean(a.phone || (w.phones && w.phones.length) || (w.emails && w.emails.length));
+    add(hasContact ? 'Phone or email found' : 'No phone or email found', hasContact ? 5 : 0);
+    const hasLinkedIn = Boolean(a.linkedin || (w.socials && w.socials.linkedin));
+    add(hasLinkedIn ? 'LinkedIn page found' : 'No LinkedIn found', hasLinkedIn ? 3 : 0);
+    const siteUp = Boolean(it.web && !w.error);
+    add(siteUp ? 'Website loads' : (it.web ? 'Website didn\'t load' : 'Website not checked'), siteUp ? 2 : 0);
+
+    const score = Math.max(0, Math.min(100, parts.reduce((t, [, p]) => t + p, 0)));
+    const label = score >= 70 ? 'Hot' : score >= 45 ? 'Warm' : 'Cold';
+    return { score, label, parts };
+  }
+
   function crmVisible() {
     const q = $('crm-search').value.trim().toLowerCase();
-    return [...crmItems.values()].filter(it => {
+    const sort = $('crm-sort') ? $('crm-sort').value : 'added';
+    const byAdded = (x, y) => (y.addedAt || '').localeCompare(x.addedAt || '');
+    const sorters = {
+      added: byAdded,
+      score: (x, y) => leadScore(y).score - leadScore(x).score || byAdded(x, y),
+      // Dated follow-ups first, soonest first; then the rest, newest first.
+      followup: (x, y) => (x.followUp && y.followUp ? x.followUp.localeCompare(y.followUp) : x.followUp ? -1 : y.followUp ? 1 : byAdded(x, y)),
+    };
+    return [...crmItems.values()].sort(sorters[sort] || byAdded).filter(it => {
       if (crmFilter !== 'all' && it.status !== crmFilter) return false;
       if (!q) return true;
       const a = it.apollo || {};
@@ -1219,6 +1279,11 @@ body.server-mode .signout { display: inline; }
           ${row('Spoofable', sc.grade ? (sc.spoofable ? 'Yes' : 'No') : '')}${row('MX', esc(sc.mx))}
         </dl>${sc.issues ? `<p style="margin-top:8px">${esc(sc.issues)}</p>` : ''}
         ${sc.scannedAt ? `<p class="muted">Scanned ${esc(fmtDate(sc.scannedAt))}</p>` : ''}</div>
+      <div><h3>Why this score</h3>${(() => {
+        const ls = leadScore(it);
+        return `<ul class="score-parts">${ls.parts.map(([label, pts]) => `<li class="${pts ? '' : 'zero'}"><span>${esc(label)}</span><b>${pts ? '+' + pts : '0'}</b></li>`).join('')}
+          <li><span><b>Lead score</b></span><b>${ls.score} · ${ls.label}</b></li></ul>`;
+      })()}</div>
       <div class="notes-box"><h3>Notes</h3>
         <textarea data-notes="${esc(it.domain)}" placeholder="Calls, meetings, who you spoke to…">${esc(it.notes || '')}</textarea>
         <p class="muted" data-notes-state="${esc(it.domain)}">${it.updatedAt ? 'Last updated ' + esc(fmtDate(it.updatedAt)) : ''}</p></div>
@@ -1235,10 +1300,10 @@ body.server-mode .signout { display: inline; }
     renderCrmStats();
     const list = crmVisible();
     if (!crmItems.size) {
-      $('crm-body').innerHTML = '<tr><td colspan="8" class="empty">Nothing in the CRM yet. Tick companies in the scanner and press "Add selected to CRM".</td></tr>';
+      $('crm-body').innerHTML = '<tr><td colspan="9" class="empty">Nothing in the CRM yet. Tick companies in the scanner and press "Add selected to CRM".</td></tr>';
       return;
     }
-    if (!list.length) { $('crm-body').innerHTML = '<tr><td colspan="8" class="empty">Nothing matches.</td></tr>'; return; }
+    if (!list.length) { $('crm-body').innerHTML = '<tr><td colspan="9" class="empty">Nothing matches.</td></tr>'; return; }
     // Keep a notes box being typed in from being redrawn under the cursor.
     const typing = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.notes;
     if (typing && crmOpen === typing) return;
@@ -1249,6 +1314,7 @@ body.server-mode .signout { display: inline; }
       const open = crmOpen === it.domain;
       return `<tr class="crm-row" data-crm-row="${esc(it.domain)}" aria-expanded="${open}">
           <td><span class="crm-name">${esc(name)}</span><span class="crm-domain">${link(it.domain, it.domain)}</span>${it._error ? `<br><span class="note" style="color:var(--error)">${esc(it._error)}</span>` : ''}</td>
+          <td>${(() => { const ls = leadScore(it); return `<span class="score" title="Lead score: ${ls.score} out of 100"><b>${ls.score}</b><span class="pill ${ls.label.toLowerCase()}">${ls.label}</span></span>`; })()}</td>
           <td><select data-crm-status="${esc(it.domain)}" aria-label="Status">${crmStatuses.map(st => `<option ${st === it.status ? 'selected' : ''}>${esc(st)}</option>`).join('')}</select></td>
           <td>${esc(employees)}</td>
           <td>${esc(a.industry || '')}</td>
@@ -1256,7 +1322,7 @@ body.server-mode .signout { display: inline; }
           <td>${esc(sc.provider || '')}${sc.grade ? `<br><span class="pill ${GRADE_PILL[sc.grade] || ''}">${esc(sc.grade)}</span>` : ''}</td>
           <td><input type="date" data-crm-follow="${esc(it.domain)}" value="${esc(it.followUp || '')}" aria-label="Follow-up date"></td>
           <td class="muted">${esc(fmtDate(it.addedAt))}</td>
-        </tr>${open ? `<tr class="crm-detail"><td colspan="8">${detailHtml(it)}</td></tr>` : ''}`;
+        </tr>${open ? `<tr class="crm-detail"><td colspan="9">${detailHtml(it)}</td></tr>` : ''}`;
     }).join('');
   }
 
@@ -1272,12 +1338,13 @@ body.server-mode .signout { display: inline; }
   function exportCrm() {
     const list = crmVisible();
     if (!list.length) { alert('Nothing to export.'); return; }
-    const header = ['Company', 'Domain', 'Status', 'Follow-up', 'Notes', 'Employees', 'Industry', 'Revenue', 'Founded', 'City', 'Country',
+    const header = ['Company', 'Domain', 'Lead score', 'Score label', 'Status', 'Follow-up', 'Notes', 'Employees', 'Industry', 'Revenue', 'Founded', 'City', 'Country',
       'Company phone', 'Company LinkedIn', 'Description', 'Website emails', 'Website phones', 'Instagram', 'Facebook',
       'Mail provider', 'Email security', 'Can be spoofed', 'Email issues', 'Added', 'Added by'];
     const lines = [header.join(',')].concat(list.map(it => {
       const a = it.apollo || {}, w = it.web || {}, sc = it.scan || {}, so = w.socials || {};
-      return [it.name || a.name || '', it.domain, it.status, it.followUp, it.notes, a.employees ?? '', a.industry, a.revenue, a.founded ?? '',
+      const ls = leadScore(it);
+      return [it.name || a.name || '', it.domain, ls.score, ls.label, it.status, it.followUp, it.notes, a.employees ?? '', a.industry, a.revenue, a.founded ?? '',
         a.city, a.country, a.phone, a.linkedin || so.linkedin || '', a.description, (w.emails || []).join(' | '), (w.phones || []).join(' | '),
         so.instagram || '', so.facebook || '', sc.provider, sc.grade, sc.grade ? (sc.spoofable ? 'Yes' : 'No') : '', sc.issues,
         (it.addedAt || '').slice(0, 10), it.addedBy || ''].map(csvCell).join(',');
@@ -1305,6 +1372,11 @@ body.server-mode .signout { display: inline; }
   $('add-crm').addEventListener('click', addPickedToCrm);
   $('crm-export').addEventListener('click', exportCrm);
   $('crm-search').addEventListener('input', renderCrm);
+  $('crm-sort').addEventListener('change', () => {
+    try { localStorage.setItem('lead-scanner-crm-sort', $('crm-sort').value); } catch (e) { /* ignore */ }
+    renderCrm();
+  });
+  try { const v = localStorage.getItem('lead-scanner-crm-sort'); if (v) $('crm-sort').value = v; } catch (e) { /* ignore */ }
   $('results').addEventListener('change', e => {
     const d = e.target.dataset && e.target.dataset.pick;
     if (!d) return;

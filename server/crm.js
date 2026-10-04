@@ -178,7 +178,7 @@ export function createCrm({ dataDir, env }) {
       fetchedAt: new Date().toISOString(),
     };
     if (created && !out.employees && !out.industry) {
-      out.note = 'Added to Apollo just now; Apollo can take a minute to fill in company details. Use Refresh data shortly.';
+      out.note = 'Added to Apollo just now; Apollo can take a minute to fill in company details. Use Refresh company data shortly.';
     }
     return out;
   }
