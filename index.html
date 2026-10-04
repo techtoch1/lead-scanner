@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Lead Scanner | ALIGNED</title>
+<link rel="icon" href="favicon.webp" type="image/webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;700&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --aligned-poseidon: #187bcd;
+  --aligned-charcoal: #333334;
+  --aligned-tiara: #c3ced3;
+  --aligned-adalyn: #b7daea;
+  --aligned-sapphire: #013851;
+
+  --bg: #ffffff;
+  --bg-subtle: #f5f8fa;
+  --surface: #ffffff;
+  --text: var(--aligned-charcoal);
+  --text-muted: #6b6f72;
+  --heading: var(--aligned-poseidon);
+  --accent: var(--aligned-poseidon);
+  --border: var(--aligned-tiara);
+  --lead: #b45309;
+  --lead-bg: #fff4e5;
+  --pro: #15803d;
+  --pro-bg: #eaf7ee;
+  --review: #6d28d9;
+  --review-bg: #f3eefe;
+  --error: #b91c1c;
+  --error-bg: #fdecec;
+
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1c1c1d; --bg-subtle: #262627; --surface: #333334;
+    --text: #eef1f2; --text-muted: #c3ced3; --heading: #b7daea;
+    --accent: #4a9ede; --border: #4a4a4c;
+    --lead: #fbbf24; --lead-bg: #3a2c12;
+    --pro: #4ade80; --pro-bg: #173222;
+    --review: #c4b5fd; --review-bg: #2c2440;
+    --error: #f87171; --error-bg: #3b1c1c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1c1c1d; --bg-subtle: #262627; --surface: #333334;
+  --text: #eef1f2; --text-muted: #c3ced3; --heading: #b7daea;
+  --accent: #4a9ede; --border: #4a4a4c;
+  --lead: #fbbf24; --lead-bg: #3a2c12;
+  --pro: #4ade80; --pro-bg: #173222;
+  --review: #c4b5fd; --review-bg: #2c2440;
+  --error: #f87171; --error-bg: #3b1c1c;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: var(--font-sans); font-weight: 400; line-height: 1.5;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 16px 64px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
+header img { height: 28px; width: auto; display: block; }
+.logo-dark { display: none !important; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-light { display: none !important; }
+  :root:not([data-theme="light"]) .logo-dark { display: block !important; }
+}
+:root[data-theme="dark"] .logo-light { display: none !important; }
+:root[data-theme="dark"] .logo-dark { display: block !important; }
+.tag { font-size: 13px; color: var(--text-muted); letter-spacing: .04em; text-transform: uppercase; }
+
+h1 { color: var(--heading); font-weight: 700; font-size: clamp(26px, 4vw, 36px); line-height: 1.15; margin: 0 0 8px; }
+.lede { font-weight: 300; font-size: 18px; max-width: 720px; margin: 0 0 24px; }
+.rule { display: flex; align-items: center; margin: 32px 0 24px; }
+.rule::before { content: ""; flex: 1; height: 1px; background: var(--text); opacity: .5; }
+.rule::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+h2 { color: var(--heading); font-size: 20px; margin: 0 0 12px; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; }
+@media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--bg-subtle); border: 1px solid var(--border); padding: 20px; }
+
+textarea {
+  width: 100%; min-height: 200px; resize: vertical; padding: 12px;
+  font: 14px/1.5 var(--font-mono); color: var(--text); background: var(--surface);
+  border: 1px solid var(--border);
+}
+textarea:focus, input:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hint { font-size: 13px; color: var(--text-muted); margin: 8px 0 0; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 16px; }
+
+button, .btn {
+  font: 700 14px var(--font-sans); padding: 10px 18px; cursor: pointer;
+  border: 1px solid var(--aligned-poseidon); background: var(--aligned-poseidon); color: #fff;
+}
+button.secondary, .btn.secondary { background: transparent; color: var(--accent); border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.file-label input { display: none; }
+
+.providers label { display: flex; gap: 8px; align-items: center; font-size: 14px; padding: 4px 0; }
+.providers input { accent-color: var(--aligned-poseidon); width: 16px; height: 16px; }
+
+.progress { height: 4px; background: var(--border); margin-top: 16px; overflow: hidden; }
+.progress > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+@media (max-width: 720px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { border: 1px solid var(--border); background: var(--surface); padding: 12px 14px; cursor: pointer; text-align: left; color: var(--text); font-family: var(--font-sans); font-weight: 400; }
+.stat.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.stat .n { font-size: 26px; font-weight: 700; display: block; line-height: 1.1; }
+.stat .l { font-size: 13px; color: var(--text-muted); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.toolbar input[type=search] { padding: 9px 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 14px var(--font-sans); min-width: 220px; flex: 1; max-width: 360px; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background: var(--bg-subtle); font-weight: 700; white-space: nowrap; position: sticky; top: 0; }
+td.mono { font-family: var(--font-mono); font-size: 12px; word-break: break-all; }
+td.src { color: var(--text-muted); font-size: 13px; word-break: break-all; }
+tbody tr:last-child td { border-bottom: 0; }
+.pill { display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.pill.lead { color: var(--lead); background: var(--lead-bg); }
+.pill.pro { color: var(--pro); background: var(--pro-bg); }
+.pill.review { color: var(--review); background: var(--review-bg); }
+.pill.error { color: var(--error); background: var(--error-bg); }
+.pill.pending { color: var(--text-muted); background: var(--bg-subtle); }
+.empty { padding: 32px; text-align: center; color: var(--text-muted); }
+.note { font-size: 13px; color: var(--text-muted); }
+footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a href="https://www.aligned-tech.com" aria-label="Aligned website">
+      <img class="logo-light" src="logo-light.svg" alt="ALIGNED">
+      <img class="logo-dark" src="logo-dark.svg" alt="ALIGNED">
+    </a>
+    <span class="tag">Internal tool</span>
+  </header>
+
+  <h1>Lead Scanner</h1>
+  <p class="lede">Paste websites, domains or email addresses. The scanner reads each domain's MX and SPF records and shows which companies aren't on Google Workspace or Microsoft 365.</p>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>1. Add domains</h2>
+      <label for="input" class="note">One per line, or separated by commas. Messy text works too: the scanner pulls out every email and domain it finds.</label>
+      <textarea id="input" spellcheck="false" placeholder="https://www.example.com&#10;sales@company.com.lb&#10;anotherbusiness.ae"></textarea>
+      <p class="hint" id="parsed-count">0 domains detected</p>
+      <div class="row">
+        <button id="scan">Scan domains</button>
+        <button id="stop" class="secondary" hidden>Stop</button>
+        <label class="btn secondary file-label">Upload CSV / TXT<input type="file" id="file" accept=".csv,.txt,.tsv,text/plain,text/csv"></label>
+        <button id="clear" class="secondary">Clear</button>
+      </div>
+      <div class="progress" aria-hidden="true"><div id="bar"></div></div>
+      <p class="hint" id="progress-text"></p>
+    </section>
+
+    <aside class="panel providers">
+      <h2>2. Professional providers</h2>
+      <p class="note" style="margin-top:0">Domains on a ticked provider are marked <span class="pill pro">Professional</span>. Everything else is a <span class="pill lead">Lead</span>.</p>
+      <div id="provider-list"></div>
+      <p class="hint">Changing these updates the results straight away, no re-scan needed.</p>
+    </aside>
+  </div>
+
+  <div class="rule" aria-hidden="true"></div>
+
+  <section>
+    <h2>3. Results</h2>
+    <div class="stats" id="stats"></div>
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Filter by domain or provider" aria-label="Filter results">
+      <div class="row" style="margin:0">
+        <button class="secondary" id="export-leads">Export leads (CSV)</button>
+        <button class="secondary" id="export-all">Export all (CSV)</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Domain</th><th>Status</th><th>Mail provider</th><th>MX records</th><th>Notes</th><th>Source</th></tr>
+        </thead>
+        <tbody id="results"><tr><td colspan="6" class="empty">No results yet. Add some domains and press Scan.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    DNS lookups run from your browser through Google Public DNS (Cloudflare as fallback). Nothing you enter is stored anywhere.
+    "Review" means the domain sits behind an email security gateway and its SPF record doesn't show which mailbox provider is behind it.
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---- Provider catalogue --------------------------------------------------
+  // Each provider is matched against MX hostnames (suffix match) and, as a
+  // fallback for gateways, against SPF include: mechanisms.
+  const PROVIDERS = [
+    { id: 'google', name: 'Google Workspace', pro: true,
+      mx: ['google.com', 'googlemail.com'], spf: ['_spf.google.com', 'google.com'] },
+    { id: 'microsoft', name: 'Microsoft 365', pro: true,
+      mx: ['mail.protection.outlook.com', 'outlook.com', 'hotmail.com', 'mail.protection.office365.us'], spf: ['spf.protection.outlook.com', 'outlook.com'] },
+    { id: 'zoho', name: 'Zoho Mail', pro: false, mx: ['zoho.com', 'zoho.eu', 'zoho.in', 'zoho.com.au', 'zoho.sa', 'zohomail.com'], spf: ['zoho.com', 'zoho.eu', 'zohomail.com'] },
+    { id: 'titan', name: 'Titan Email', pro: false, mx: ['titan.email'], spf: ['titan.email'] },
+    { id: 'godaddy', name: 'GoDaddy Email', pro: false, mx: ['secureserver.net'], spf: ['secureserver.net'] },
+    { id: 'hostinger', name: 'Hostinger', pro: false, mx: ['hostinger.com', 'hostinger.in'], spf: ['hostinger.com'] },
+    { id: 'namecheap', name: 'Namecheap Private Email', pro: false, mx: ['privateemail.com', 'registrar-servers.com', 'web-hosting.com'], spf: ['privateemail.com', 'spf.web-hosting.com'] },
+    { id: 'ionos', name: 'IONOS', pro: false, mx: ['ionos.com', 'ionos.de', 'ionos.co.uk', '1and1.com', 'kundenserver.de', 'perfora.net'], spf: ['ionos.com', 'kundenserver.de', 'perfora.net'] },
+    { id: 'ovh', name: 'OVHcloud', pro: false, mx: ['ovh.net', 'ovh.com'], spf: ['mx.ovh.com', 'ovh.net'] },
+    { id: 'rackspace', name: 'Rackspace Email', pro: false, mx: ['emailsrvr.com'], spf: ['emailsrvr.com'] },
+    { id: 'yandex', name: 'Yandex 360', pro: false, mx: ['yandex.net', 'yandex.ru'], spf: ['yandex.net', 'yandex.ru'] },
+    { id: 'yahoo', name: 'Yahoo', pro: false, mx: ['yahoodns.net', 'yahoo.com'], spf: ['yahoo.com'] },
+    { id: 'icloud', name: 'iCloud Mail', pro: false, mx: ['icloud.com', 'mail.me.com'], spf: ['icloud.com'] },
+    { id: 'proton', name: 'Proton Mail', pro: false, mx: ['protonmail.ch', 'proton.me'], spf: ['protonmail.ch'] },
+    { id: 'fastmail', name: 'Fastmail', pro: false, mx: ['messagingengine.com', 'fastmail.com'], spf: ['messagingengine.com'] },
+    { id: 'amazon', name: 'Amazon WorkMail / SES', pro: false, mx: ['amazonaws.com', 'awsapps.com'], spf: ['amazonses.com'] },
+    { id: 'mailgun', name: 'Mailgun', pro: false, mx: ['mailgun.org'], spf: ['mailgun.org'] },
+    { id: 'hostgator', name: 'HostGator / Bluehost', pro: false, mx: ['hostgator.com', 'websitewelcome.com', 'bluehost.com'], spf: ['websitewelcome.com', 'bluehost.com'] },
+    { id: 'mailchannels', name: 'MailChannels (shared hosting)', pro: false, mx: ['mailchannels.net'], spf: ['relay.mailchannels.net'] },
+  ];
+
+  // Security gateways sit in front of the real mailbox provider. When we see one,
+  // the SPF record usually reveals what's behind it.
+  const GATEWAYS = [
+    { name: 'Mimecast', mx: ['mimecast.com', 'mimecast.co.za', 'mimecast-offshore.com'] },
+    { name: 'Proofpoint', mx: ['pphosted.com', 'ppe-hosted.com', 'proofpoint.com'] },
+    { name: 'Barracuda', mx: ['barracudanetworks.com', 'cudasvc.com'] },
+    { name: 'Cisco Secure Email', mx: ['iphmx.com'] },
+    { name: 'Broadcom / Symantec', mx: ['messagelabs.com'] },
+    { name: 'Trend Micro', mx: ['tmes.trendmicro.com', 'trendmicro.eu', 'in.hes.trendmicro.com'] },
+    { name: 'Sophos', mx: ['sophos.com', 'hydra.sophos.com'] },
+    { name: 'Forcepoint', mx: ['mailcontrol.com'] },
+    { name: 'Hornetsecurity', mx: ['hornetsecurity.com'] },
+    { name: 'SpamTitan', mx: ['spamtitan.com'] },
+    { name: 'Avanan / Check Point', mx: ['avanan.net'] },
+    { name: 'Spam Experts', mx: ['spamexperts.com', 'spamexperts.eu', 'spamexperts.net', 'antispamcloud.com'] },
+  ];
+
+  // Consumer inboxes. A company using one of these for business is a lead.
+  const FREE_MAIL = new Set(('gmail.com googlemail.com yahoo.com yahoo.fr yahoo.co.uk ymail.com hotmail.com hotmail.fr hotmail.co.uk ' +
+    'outlook.com outlook.fr live.com live.fr msn.com icloud.com me.com mac.com aol.com gmx.com gmx.net gmx.de mail.com ' +
+    'protonmail.com proton.me yandex.com yandex.ru zoho.com zohomail.com inbox.com mail.ru qq.com 163.com 126.com rocketmail.com').split(' '));
+
+  const STORAGE_KEY = 'lead-scanner-pro-providers';
+  const proSet = new Set(PROVIDERS.filter(p => p.pro).map(p => p.id));
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (Array.isArray(saved)) { proSet.clear(); saved.forEach(id => proSet.add(id)); }
+  } catch (e) { /* storage unavailable: keep defaults */ }
+
+  // ---- Input parsing -------------------------------------------------------
+  const DOMAIN_RE = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+  const FILE_EXT_RE = /\.(png|jpe?g|gif|svg|webp|pdf|docx?|xlsx?|csv|txt|html?|php|js|css)$/;
+
+  function toDomain(token) {
+    let t = token.trim().toLowerCase().replace(/^["'<(\[]+|["'>)\].,;:]+$/g, '');
+    if (!t) return null;
+    if (t.startsWith('mailto:')) t = t.slice(7);
+    if (t.includes('@') && !t.includes('/')) t = t.split('@').pop();
+    t = t.replace(/^[a-z]+:\/\//, '').split(/[/?#]/)[0].split(':')[0];
+    t = t.replace(/^www\d?\./, '').replace(/\.$/, '');
+    try { t = new URL('http://' + t).hostname; } catch (e) { return null; } // punycode IDNs
+    if (!DOMAIN_RE.test(t) || FILE_EXT_RE.test(t)) return null;
+    return t;
+  }
+
+  // Returns Map(domain -> [original inputs])
+  function parseInput(text) {
+    const map = new Map();
+    for (const tok of text.split(/[\s,;|\t]+/)) {
+      const d = toDomain(tok);
+      if (!d) continue;
+      if (!map.has(d)) map.set(d, []);
+      const src = tok.trim().replace(/^["']+|["']+$/g, '');
+      if (!map.get(d).includes(src)) map.get(d).push(src);
+    }
+    return map;
+  }
+
+  // ---- DNS over HTTPS ------------------------------------------------------
+  const RESOLVERS = [
+    (name, type) => fetch(`https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`),
+    (name, type) => fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`, { headers: { accept: 'application/dns-json' } }),
+  ];
+
+  async function dns(name, type) {
+    let lastErr;
+    for (const resolve of RESOLVERS) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await resolve(name, type);
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const json = await res.json();
+          // 0 = NOERROR, 3 = NXDOMAIN. Anything else (SERVFAIL...) we retry.
+          if (json.Status !== 0 && json.Status !== 3) throw new Error('DNS status ' + json.Status);
+          return json;
+        } catch (e) {
+          lastErr = e;
+          await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+        }
+      }
+    }
+    throw lastErr || new Error('Lookup failed');
+  }
+
+  const TYPE_MX = 15, TYPE_TXT = 16;
+
+  async function lookup(domain) {
+    const [mxRes, txtRes] = await Promise.all([dns(domain, 'MX'), dns(domain, 'TXT').catch(() => null)]);
+    const result = { nxdomain: mxRes.Status === 3, mx: [], spf: '' };
+    result.mx = (mxRes.Answer || [])
+      .filter(a => a.type === TYPE_MX)
+      .map(a => {
+        const [pref, host] = a.data.trim().split(/\s+/);
+        return { pref: Number(pref), host: (host || '').toLowerCase().replace(/\.$/, '') };
+      })
+      .sort((a, b) => a.pref - b.pref);
+    if (txtRes) {
+      const spf = (txtRes.Answer || [])
+        .filter(a => a.type === TYPE_TXT)
+        .map(a => a.data.replace(/"\s*"/g, '').replace(/"/g, ''))
+        .find(t => /^v=spf1\b/i.test(t.trim()));
+      result.spf = spf ? spf.trim() : '';
+    }
+    return result;
+  }
+
+  // ---- Classification ------------------------------------------------------
+  const hostMatches = (host, suffixes) => suffixes.some(s => host === s || host.endsWith('.' + s));
+  const spfIncludes = spf => (spf.match(/(?:include|redirect)[:=]([^\s]+)/gi) || []).map(m => m.split(/[:=]/).slice(1).join(':').toLowerCase());
+
+  function providerFromSpf(spf) {
+    const incs = spfIncludes(spf);
+    return PROVIDERS.find(p => incs.some(i => hostMatches(i, p.spf) || p.spf.includes(i)));
+  }
+
+  function registrable(host) {
+    // Good-enough eTLD+1: handles common two-level ccTLDs like .com.lb, .co.uk
+    const parts = host.split('.');
+    const n = /^(com|co|net|org|gov|edu|ac|or|ne)$/.test(parts[parts.length - 2]) && parts[parts.length - 1].length === 2 ? 3 : 2;
+    return parts.slice(-n).join('.');
+  }
+
+  // Returns the DNS-derived facts; status is computed at render time so the
+  // provider checkboxes can change it without a re-scan.
+  function classify(domain, data) {
+    if (FREE_MAIL.has(domain)) {
+      return { kind: 'free', provider: 'Free personal email', note: 'Personal inbox domain. Whoever uses it has no business email.' };
+    }
+    if (data.nxdomain) return { kind: 'error', provider: '—', note: 'Domain does not exist.' };
+    const mx = data.mx;
+    if (!mx.length || (mx.length === 1 && (mx[0].host === '' || mx[0].host === '.'))) {
+      const sp = data.spf && providerFromSpf(data.spf);
+      return { kind: 'none', provider: 'No email set up', note: 'No MX record: this domain can\'t receive email.' + (sp ? ` SPF still mentions ${sp.name}.` : '') };
+    }
+    const hosts = mx.map(m => m.host);
+
+    for (const p of PROVIDERS) {
+      if (hosts.some(h => hostMatches(h, p.mx))) {
+        const mixed = PROVIDERS.filter(o => o !== p && hosts.some(h => hostMatches(h, o.mx)));
+        return { kind: 'provider', providerId: p.id, provider: p.name, note: mixed.length ? 'Also lists MX for ' + mixed.map(o => o.name).join(', ') + '.' : '' };
+      }
+    }
+
+    const gw = GATEWAYS.find(g => hosts.some(h => hostMatches(h, g.mx)));
+    if (gw) {
+      const behind = data.spf && providerFromSpf(data.spf);
+      if (behind) return { kind: 'provider', providerId: behind.id, provider: behind.name, note: `Behind ${gw.name} gateway (detected from SPF).` };
+      return { kind: 'gateway', provider: gw.name + ' gateway', note: 'Mailbox provider hidden behind a security gateway. Check manually.' };
+    }
+
+    const own = registrable(domain);
+    const selfHosted = hosts.some(h => registrable(h) === own);
+    const spfP = data.spf && providerFromSpf(data.spf);
+    if (selfHosted) {
+      return { kind: 'self', provider: 'Self-hosted / cPanel', note: 'Mail server runs on the company\'s own domain or web host.' + (spfP ? ` SPF mentions ${spfP.name}.` : '') };
+    }
+    return { kind: 'other', provider: 'Other: ' + registrable(hosts[0]), note: spfP ? `SPF mentions ${spfP.name}.` : '' };
+  }
+
+  function statusOf(c) {
+    if (!c) return 'pending';
+    if (c.kind === 'error') return 'error';
+    if (c.kind === 'gateway') return 'review';
+    if (c.kind === 'provider' && proSet.has(c.providerId)) return 'pro';
+    return 'lead';
+  }
+  const STATUS_LABEL = { lead: 'Lead', pro: 'Professional', review: 'Review', error: 'Error', pending: 'Scanning…' };
+
+  // ---- State & rendering ---------------------------------------------------
+  const $ = id => document.getElementById(id);
+  let rows = [];          // { domain, sources, data, c, err }
+  let filter = 'all';
+  let runId = 0;
+
+  const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+
+  function renderProviders() {
+    $('provider-list').innerHTML = PROVIDERS.map(p =>
+      `<label><input type="checkbox" data-id="${p.id}" ${proSet.has(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('');
+  }
+
+  function renderStats() {
+    const counts = { all: rows.length, lead: 0, pro: 0, review: 0, error: 0 };
+    rows.forEach(r => { const s = statusOf(r.c); if (s in counts) counts[s]++; });
+    const items = [['all', 'Scanned'], ['lead', 'Leads'], ['pro', 'Professional'], ['review', 'Review'], ['error', 'Errors']];
+    $('stats').innerHTML = items.map(([k, l]) =>
+      `<button type="button" class="stat ${filter === k ? 'active' : ''}" data-filter="${k}" aria-pressed="${filter === k}"><span class="n">${counts[k]}</span><span class="l">${l}</span></button>`).join('');
+  }
+
+  function visibleRows() {
+    const q = $('search').value.trim().toLowerCase();
+    return rows.filter(r => {
+      const s = statusOf(r.c);
+      if (filter !== 'all' && s !== filter) return false;
+      if (!q) return true;
+      return r.domain.includes(q) || (r.c && r.c.provider.toLowerCase().includes(q));
+    });
+  }
+
+  function render() {
+    renderStats();
+    const list = visibleRows();
+    if (!rows.length) {
+      $('results').innerHTML = '<tr><td colspan="6" class="empty">No results yet. Add some domains and press Scan.</td></tr>';
+      return;
+    }
+    if (!list.length) {
+      $('results').innerHTML = '<tr><td colspan="6" class="empty">Nothing matches this filter.</td></tr>';
+      return;
+    }
+    $('results').innerHTML = list.map(r => {
+      const s = statusOf(r.c);
+      const mx = r.data ? r.data.mx.map(m => `${m.pref} ${m.host}`).join('<br>') : '';
+      return `<tr>
+        <td><strong>${esc(r.domain)}</strong></td>
+        <td><span class="pill ${s}">${STATUS_LABEL[s]}</span></td>
+        <td>${r.c ? esc(r.c.provider) : ''}</td>
+        <td class="mono">${mx ? mx.split('<br>').map(esc).join('<br>') : (r.data ? '—' : '')}</td>
+        <td class="note">${r.c ? esc(r.c.note) : ''}</td>
+        <td class="src">${esc(r.sources.join(', '))}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  let renderQueued = false;
+  function scheduleRender() {
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(() => { renderQueued = false; render(); });
+  }
+
+  function updateParsedCount() {
+    const n = parseInput($('input').value).size;
+    $('parsed-count').textContent = `${n} domain${n === 1 ? '' : 's'} detected`;
+  }
+
+  // ---- Scan ----------------------------------------------------------------
+  async function scan() {
+    const parsed = parseInput($('input').value);
+    if (!parsed.size) { $('progress-text').textContent = 'No valid domains or emails found.'; return; }
+
+    const myRun = ++runId;
+    rows = [...parsed].map(([domain, sources]) => ({ domain, sources, data: null, c: null }));
+    filter = 'all';
+    render();
+
+    $('scan').disabled = true;
+    $('stop').hidden = false;
+    let done = 0;
+    const total = rows.length;
+    const tick = () => {
+      $('bar').style.width = (done / total * 100) + '%';
+      $('progress-text').textContent = `Scanned ${done} of ${total}`;
+    };
+    tick();
+
+    let next = 0;
+    const CONCURRENCY = 6;
+    async function worker() {
+      while (next < rows.length && myRun === runId) {
+        const row = rows[next++];
+        if (FREE_MAIL.has(row.domain)) {
+          row.data = { mx: [], spf: '' };
+          row.c = classify(row.domain, row.data);
+        } else {
+          try {
+            row.data = await lookup(row.domain);
+            row.c = classify(row.domain, row.data);
+          } catch (e) {
+            row.c = { kind: 'error', provider: '—', note: 'Lookup failed: ' + e.message };
+          }
+        }
+        if (myRun !== runId) return;
+        done++;
+        tick();
+        scheduleRender();
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, total) }, worker));
+
+    if (myRun === runId) {
+      $('progress-text').textContent = `Done. Scanned ${total} domain${total === 1 ? '' : 's'}.`;
+      finish();
+    }
+  }
+
+  function finish() {
+    $('scan').disabled = false;
+    $('stop').hidden = true;
+    render();
+  }
+
+  // ---- CSV export ----------------------------------------------------------
+  function csvCell(v) {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function exportCsv(onlyLeads) {
+    const list = rows.filter(r => r.c && (!onlyLeads || statusOf(r.c) === 'lead'));
+    if (!list.length) { alert(onlyLeads ? 'No leads to export yet.' : 'Nothing to export yet.'); return; }
+    const header = ['Domain', 'Status', 'Mail provider', 'MX records', 'SPF', 'Notes', 'Source'];
+    const lines = [header.join(',')].concat(list.map(r => [
+      r.domain, STATUS_LABEL[statusOf(r.c)], r.c.provider,
+      r.data ? r.data.mx.map(m => `${m.pref} ${m.host}`).join(' | ') : '',
+      r.data ? r.data.spf : '', r.c.note, r.sources.join(' | ')
+    ].map(csvCell).join(',')));
+    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `lead-scanner-${onlyLeads ? 'leads' : 'all'}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  }
+
+  // ---- Wiring --------------------------------------------------------------
+  $('input').addEventListener('input', updateParsedCount);
+  $('scan').addEventListener('click', scan);
+  $('stop').addEventListener('click', () => {
+    runId++;
+    $('progress-text').textContent = 'Stopped. Results so far are below.';
+    rows = rows.filter(r => r.c);
+    finish();
+  });
+  $('clear').addEventListener('click', () => {
+    runId++;
+    $('input').value = '';
+    rows = [];
+    $('bar').style.width = '0';
+    $('progress-text').textContent = '';
+    updateParsedCount();
+    finish();
+  });
+  $('file').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const cur = $('input').value.trim();
+      $('input').value = (cur ? cur + '\n' : '') + reader.result;
+      updateParsedCount();
+    };
+    reader.readAsText(f);
+    e.target.value = '';
+  });
+  $('provider-list').addEventListener('change', e => {
+    const id = e.target.dataset.id;
+    if (!id) return;
+    e.target.checked ? proSet.add(id) : proSet.delete(id);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...proSet])); } catch (err) { /* ignore */ }
+    render();
+  });
+  $('stats').addEventListener('click', e => {
+    const b = e.target.closest('[data-filter]');
+    if (!b) return;
+    filter = b.dataset.filter;
+    render();
+  });
+  $('search').addEventListener('input', render);
+  $('export-leads').addEventListener('click', () => exportCsv(true));
+  $('export-all').addEventListener('click', () => exportCsv(false));
+
+  renderProviders();
+  render();
+})();
+</script>
+</body>
+</html>
