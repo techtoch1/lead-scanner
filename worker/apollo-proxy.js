@@ -9,11 +9,16 @@
 //   ACCESS_PASSWORD  (secret)  password the page must send; pick a long one
 //   ALLOWED_ORIGIN   (var)     e.g. https://techtoch1.github.io (no trailing slash)
 //
+// Also used by server/server.js when Lead Scanner runs on your own server.
+//
 // Routes (all POST, JSON):
-//   /companies  search Apollo companies              (uses Apollo search credits per your plan)
-//   /people     find decision makers at a domain     (People API Search, no credits)
-//   /reveal     get one person's work email          (People Enrichment, costs credits)
-//   /push       add contacts to Apollo under a list  (Bulk Create Contacts)
+//   /capabilities    which features this Apollo plan allows
+//   /saved-accounts  companies already saved in your Apollo account (works on free plans)
+//   /saved-contacts  contacts already saved in your Apollo account  (works on free plans)
+//   /companies       search Apollo companies              (paid plans)
+//   /people          find decision makers at a domain     (paid plans; People API Search, no credits)
+//   /reveal          get one person's work email          (paid plans; costs credits)
+//   /push            add contacts to Apollo under a list  (paid plans)
 
 const APOLLO = 'https://api.apollo.io/api/v1';
 
@@ -48,19 +53,33 @@ export default {
     let body;
     try { body = await request.json(); } catch { return json({ error: 'Body must be JSON.' }, 400); }
 
-    const route = new URL(request.url).pathname.replace(/\/+$/, '');
-    try {
-      if (route === '/companies') return json(await searchCompanies(env, body));
-      if (route === '/people') return json(await findPeople(env, body));
-      if (route === '/reveal') return json(await revealPerson(env, body));
-      if (route === '/push') return json(await pushContacts(env, body));
-      if (route === '/ping') return json({ ok: true });
-      return json({ error: 'Unknown route.' }, 404);
-    } catch (e) {
-      return json({ error: e.message, apolloStatus: e.status }, e.status && e.status < 500 ? e.status : 502);
-    }
+    const route = new URL(request.url).pathname.replace(/\/+$/, '').slice(1);
+    const result = await runRoute(env, route, body);
+    return json(result.body, result.status);
   },
 };
+
+export const ROUTES = {
+  ping: async () => ({ ok: true }),
+  capabilities,
+  'saved-accounts': savedAccounts,
+  'saved-contacts': savedContacts,
+  companies: searchCompanies,
+  people: findPeople,
+  reveal: revealPerson,
+  push: pushContacts,
+};
+
+// Shared by the Worker and the Node server: returns { status, body }.
+export async function runRoute(env, route, body) {
+  const handler = Object.prototype.hasOwnProperty.call(ROUTES, route) ? ROUTES[route] : null;
+  if (!handler) return { status: 404, body: { error: 'Unknown route.' } };
+  try {
+    return { status: 200, body: await handler(env, body || {}) };
+  } catch (e) {
+    return { status: e.status && e.status < 500 ? e.status : 502, body: { error: e.message, apolloStatus: e.status } };
+  }
+}
 
 // Constant-time compare so the password can't be guessed by timing.
 function safeEqual(a, b) {
@@ -84,6 +103,7 @@ async function apollo(env, path, payload) {
     const msg = data.error || data.message || (data.errors && JSON.stringify(data.errors)) || data.raw || res.statusText;
     const err = new Error(`Apollo ${res.status}: ${msg}`);
     err.status = res.status;
+    err.code = data.error_code || '';
     throw err;
   }
   return data;
@@ -93,6 +113,58 @@ const list = v => (Array.isArray(v) ? v : String(v || '').split(','))
   .map(s => String(s).trim()).filter(Boolean).slice(0, 50);
 const clampInt = (v, lo, hi, dflt) => Math.min(hi, Math.max(lo, Number.parseInt(v, 10) || dflt));
 const cleanDomain = d => String(d || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[/?#]/)[0];
+
+// Free and trial plans can't call the search endpoints (Apollo answers 403
+// API_INACCESSIBLE). People API Search costs no credits, so it's a safe probe.
+async function capabilities(env) {
+  try {
+    await apollo(env, '/mixed_people/api_search', { q_organization_domains_list: ['apollo.io'], page: 1, per_page: 1 });
+    return { search: true };
+  } catch (e) {
+    if (e.code === 'API_INACCESSIBLE') return { search: false, reason: e.message };
+    throw e;
+  }
+}
+
+async function savedAccounts(env, body) {
+  const page = clampInt(body.page, 1, 500, 1);
+  const data = await apollo(env, '/accounts/search', { page, per_page: 100 });
+  const companies = (data.accounts || []).map(a => ({
+    apollo_id: a.id,
+    name: a.name || '',
+    domain: cleanDomain(a.primary_domain || a.domain || a.website_url),
+    industry: '',
+    employees: null,
+    location: [a.city || a.organization_city, a.state || a.organization_state, a.country || a.organization_country].filter(Boolean).join(', '),
+    linkedin: a.linkedin_url || '',
+    phone: a.sanitized_phone || a.phone || '',
+  })).filter(c => c.domain);
+  const p = data.pagination || {};
+  return { companies, page, total_pages: p.total_pages || 1, total: p.total_entries || companies.length };
+}
+
+async function savedContacts(env, body) {
+  const page = clampInt(body.page, 1, 500, 1);
+  const data = await apollo(env, '/contacts/search', { page, per_page: 100 });
+  const contacts = (data.contacts || []).map(c => {
+    const org = c.organization || {};
+    const acct = c.account || {};
+    const emailDomain = c.email && !c.free_domain ? c.email.split('@').pop() : '';
+    return {
+      id: c.id,
+      first_name: c.first_name || '',
+      last_name: c.last_name || '',
+      title: c.title || '',
+      email: c.email || '',
+      email_status: c.email_status || '',
+      linkedin: c.linkedin_url || '',
+      organization_name: c.organization_name || org.name || acct.name || '',
+      domain: cleanDomain(org.primary_domain || acct.primary_domain || acct.domain || org.website_url || emailDomain),
+    };
+  }).filter(c => c.domain);
+  const p = data.pagination || {};
+  return { contacts, page, total_pages: p.total_pages || 1, total: p.total_entries || contacts.length };
+}
 
 async function searchCompanies(env, body) {
   const payload = {

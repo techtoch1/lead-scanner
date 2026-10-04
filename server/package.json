@@ -1,0 +1,8 @@
+{
+  "name": "lead-scanner-server",
+  "private": true,
+  "type": "module",
+  "description": "Serves Lead Scanner and its Apollo API on your own server. No dependencies.",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

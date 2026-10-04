@@ -169,6 +169,9 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); fon
 button.link:disabled { color: var(--text-muted); text-decoration: none; }
 .apollo-only { display: none; }
 body.apollo-on .apollo-only { display: revert; }
+.apollo-search-only { display: none !important; }
+body.apollo-on.apollo-search .apollo-search-only { display: revert !important; }
+body.server-mode #apollo-settings { display: none; }
 </style>
 </head>
 <body>
@@ -189,7 +192,11 @@ body.apollo-on .apollo-only { display: revert; }
       <h2>Find companies in Apollo <span class="note" style="font-weight:400">(optional)</span></h2>
       <span class="conn" id="apollo-conn">Not connected</span>
     </div>
-    <form id="apollo-search" class="apollo-only">
+    <div class="row apollo-only" style="margin-top:12px">
+      <button type="button" id="ap-import">Import from Apollo</button>
+      <span class="note">Scans the companies and contacts saved in your Apollo account.</span>
+    </div>
+    <form id="apollo-search" class="apollo-only apollo-search-only">
       <div class="form-grid">
         <div class="field">
           <label for="ap-locations">Locations</label>
@@ -286,8 +293,8 @@ body.apollo-on .apollo-only { display: revert; }
         </select>
       </div>
       <div class="row" style="margin:0">
-        <button class="secondary apollo-only" id="find-people">Find decision makers for leads</button>
-        <button class="secondary apollo-only" id="push-apollo">Add revealed contacts to Apollo</button>
+        <button class="secondary apollo-only apollo-search-only" id="find-people">Find decision makers for leads</button>
+        <button class="secondary apollo-only apollo-search-only" id="push-apollo">Add revealed contacts to Apollo</button>
         <button class="secondary" id="export-leads">Export leads (CSV)</button>
         <button class="secondary" id="export-all">Export all (CSV)</button>
       </div>
@@ -665,7 +672,8 @@ body.apollo-on .apollo-only { display: revert; }
     if (!parsed.size) { $('progress-text').textContent = 'No valid domains or emails found.'; return; }
 
     const myRun = ++runId;
-    rows = [...parsed].map(([domain, sources]) => ({ domain, sources, data: null, c: null, sec: null, people: null }));
+    rows = [...parsed].map(([domain, sources]) => ({ domain, sources, data: null, c: null, sec: null,
+      people: savedPeople.has(domain) ? savedPeople.get(domain).map(p => ({ ...p })) : null }));
     filter = 'all';
     render();
 
@@ -750,11 +758,16 @@ body.apollo-on .apollo-only { display: revert; }
   }
 
   // ---- Apollo ----------------------------------------------------------------
-  // Talks to the Cloudflare Worker in /worker, which holds the API key.
+  // Two ways to reach Apollo, both keeping the API key off this page:
+  //  - server mode: the page is served by server/server.js, which answers /api/*
+  //  - worker mode: a Cloudflare Worker (worker/), configured in the settings box
   const APOLLO_KEY = 'lead-scanner-apollo';
   let apolloCfg = null;
   try { apolloCfg = JSON.parse(localStorage.getItem(APOLLO_KEY) || 'null'); } catch (e) { /* ignore */ }
+  let serverMode = false;
+  let canSearch = false;  // paid Apollo plans only
   const companyInfo = new Map(); // domain -> company details from Apollo
+  const savedPeople = new Map(); // domain -> contacts saved in Apollo
 
   function companyLine(domain) {
     const c = companyInfo.get(domain);
@@ -776,14 +789,15 @@ body.apollo-on .apollo-only { display: revert; }
     if (!r.c || r.c.kind === 'error' || r.c.kind === 'free') return '';
     if (r.people === 'loading') return '<span class="note">Searching…</span>';
     if (r.peopleError) return `<span class="note" style="color:var(--error)">${esc(r.peopleError)}</span> <button class="link" data-act="people" data-domain="${esc(r.domain)}">Retry</button>`;
-    if (r.people === null) return `<button class="link" data-act="people" data-domain="${esc(r.domain)}">Find</button>`;
+    if (r.people === null) return canSearch ? `<button class="link" data-act="people" data-domain="${esc(r.domain)}">Find</button>` : '<span class="note">—</span>';
     if (!r.people.length) return '<span class="note">No matches in Apollo</span>';
     return '<ul class="people">' + r.people.map((p, i) => {
       let action;
       if (p.email) action = `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>${p.email_status && p.email_status !== 'verified' ? ` <span class="note">(${esc(p.email_status)})</span>` : ''}`;
       else if (p.revealing) action = '<span class="note">Revealing…</span>';
       else if (p.revealed) action = '<span class="note">No email available</span>';
-      else action = `<button class="link" data-act="reveal" data-domain="${esc(r.domain)}" data-i="${i}">Reveal email (1 credit)</button>`;
+      else if (canSearch && !p.saved) action = `<button class="link" data-act="reveal" data-domain="${esc(r.domain)}" data-i="${i}">Reveal email (1 credit)</button>`;
+      else action = '<span class="note">No email saved</span>';
       if (p.error) action += ` <span class="note" style="color:var(--error)">${esc(p.error)}</span>`;
       const name = p.linkedin ? `<a href="${esc(p.linkedin)}" target="_blank" rel="noopener">${esc(fullName(p))}</a>` : esc(fullName(p));
       return `<li><strong>${name}</strong> <span class="title">${esc(p.title)}</span><br>${action}</li>`;
@@ -793,14 +807,12 @@ body.apollo-on .apollo-only { display: revert; }
   async function apolloCall(path, body) {
     if (!apolloCfg) throw new Error('Apollo isn\'t connected.');
     let res;
+    const headers = { 'Content-Type': 'application/json' };
+    if (apolloCfg.password) headers.Authorization = 'Bearer ' + apolloCfg.password;
     try {
-      res = await fetch(apolloCfg.url.replace(/\/+$/, '') + path, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apolloCfg.password },
-        body: JSON.stringify(body || {}),
-      });
+      res = await fetch(apolloCfg.url.replace(/\/+$/, '') + path, { method: 'POST', headers, body: JSON.stringify(body || {}) });
     } catch (e) {
-      throw new Error('Can\'t reach the Worker. Check the address and its ALLOWED_ORIGIN setting.');
+      throw new Error(serverMode ? 'Can\'t reach the server.' : 'Can\'t reach the Worker. Check the address and its ALLOWED_ORIGIN setting.');
     }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Worker error ' + res.status);
@@ -815,10 +827,64 @@ body.apollo-on .apollo-only { display: revert; }
   function applyApolloState() {
     const on = !!apolloCfg;
     document.body.classList.toggle('apollo-on', on);
-    $('apollo-conn').textContent = on ? 'Connected' : 'Not connected';
+    document.body.classList.toggle('apollo-search', on && canSearch);
+    document.body.classList.toggle('server-mode', serverMode);
+    $('apollo-conn').textContent = on ? (canSearch ? 'Connected' : 'Connected · free plan: import only') : 'Not connected';
     $('apollo-conn').classList.toggle('on', on);
     $('apollo-settings').open = !on;
-    if (on) { $('ap-url').value = apolloCfg.url; $('ap-pw').value = apolloCfg.password; }
+    if (on && !serverMode) { $('ap-url').value = apolloCfg.url; $('ap-pw').value = apolloCfg.password; }
+  }
+
+  async function checkCapabilities() {
+    try { canSearch = !!(await apolloCall('/capabilities', {})).search; }
+    catch (e) { canSearch = false; }
+    applyApolloState();
+    render();
+  }
+
+  // Served by server/server.js? Then Apollo is available at /api with no setup.
+  async function detectServer() {
+    if (!/^https?:$/.test(location.protocol) || /\.github\.io$/.test(location.hostname)) return false;
+    try {
+      const res = await fetch('api/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      return res.ok && (await res.json()).ok === true;
+    } catch (e) { return false; }
+  }
+
+  async function fetchAllPages(path, key, label) {
+    const out = [];
+    for (let page = 1; page <= 50; page++) {
+      setApolloMsg(`Importing ${label}, page ${page}…`);
+      const res = await apolloCall(path, { page });
+      out.push(...res[key]);
+      if (!res[key].length || page >= (res.total_pages || 1)) break;
+    }
+    return out;
+  }
+
+  async function importFromApollo() {
+    $('ap-import').disabled = true;
+    try {
+      const companies = await fetchAllPages('/saved-accounts', 'companies', 'saved companies');
+      const contacts = await fetchAllPages('/saved-contacts', 'contacts', 'saved contacts');
+      companies.forEach(c => companyInfo.set(c.domain, c));
+      savedPeople.clear();
+      contacts.forEach(c => {
+        if (!companyInfo.has(c.domain) && c.organization_name) companyInfo.set(c.domain, { name: c.organization_name, domain: c.domain });
+        if (!savedPeople.has(c.domain)) savedPeople.set(c.domain, []);
+        savedPeople.get(c.domain).push({ ...c, saved: true });
+      });
+      const domains = [...new Set([...companies.map(c => c.domain), ...contacts.map(c => c.domain)])];
+      if (!domains.length) { setApolloMsg('Nothing to import: no saved companies or contacts with a website in Apollo.', true); return; }
+      setApolloMsg(`Imported ${companies.length} companies and ${contacts.length} contacts (${domains.length} domains). Scanning them now.`);
+      $('input').value = domains.join('\n');
+      updateParsedCount();
+      scan();
+    } catch (e) {
+      setApolloMsg('Import failed: ' + e.message, true);
+    } finally {
+      $('ap-import').disabled = false;
+    }
   }
 
   async function saveApollo() {
@@ -831,8 +897,7 @@ body.apollo-on .apollo-only { display: revert; }
       await apolloCall('/ping', {});
       try { localStorage.setItem(APOLLO_KEY, JSON.stringify(apolloCfg)); } catch (e) { /* ignore */ }
       setApolloMsg('Connected to Apollo.');
-      applyApolloState();
-      render();
+      await checkCapabilities();
     } catch (e) {
       apolloCfg = prev;
       setApolloMsg('Connection failed: ' + e.message, true);
@@ -949,6 +1014,7 @@ body.apollo-on .apollo-only { display: revert; }
     applyApolloState();
   });
   $('apollo-search').addEventListener('submit', searchApollo);
+  $('ap-import').addEventListener('click', importFromApollo);
   $('find-people').addEventListener('click', findPeopleForLeads);
   $('push-apollo').addEventListener('click', pushToApollo);
   $('results').addEventListener('click', e => {
@@ -960,6 +1026,13 @@ body.apollo-on .apollo-only { display: revert; }
     if (b.dataset.act === 'reveal') reveal(row, Number(b.dataset.i));
   });
   applyApolloState();
+  detectServer().then(found => {
+    if (found) {
+      serverMode = true;
+      apolloCfg = { url: 'api', password: '' };
+    }
+    if (apolloCfg) checkCapabilities();
+  });
 
   // ---- Wiring --------------------------------------------------------------
   $('input').addEventListener('input', updateParsedCount);

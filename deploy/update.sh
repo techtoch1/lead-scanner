@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Pulls the latest Lead Scanner from GitHub and restarts it.
+set -euo pipefail
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+git -C "$APP_DIR" pull --ff-only
+sudo systemctl restart lead-scanner
+sleep 1
+systemctl is-active lead-scanner >/dev/null && echo "Updated and running." || { sudo journalctl -u lead-scanner -n 20 --no-pager; exit 1; }

@@ -1,6 +1,6 @@
 # Lead Scanner
 
-**Live tool:** https://techtoch1.github.io/lead-scanner/
+**Live tool:** https://leads.aligned-tech.com (login required)
 
 Paste websites, domains or email addresses and see which companies **aren't** using Google Workspace or Microsoft 365 for email. Those are your leads.
 
@@ -34,7 +34,34 @@ Each domain also gets an **email security** grade:
 
 Results can be filtered, searched and exported to CSV (all, or leads only).
 
-## Connect Apollo
+## Install on your own server (recommended)
+
+Runs the page and the Apollo connection from one small Node.js process behind Nginx, with a site login. The Apollo key stays on the server. Needs Ubuntu with Nginx and Node.js 18+, and a DNS record pointing the domain at the server.
+
+```bash
+git clone https://github.com/techtoch1/lead-scanner.git ~/lead-scanner
+sudo bash ~/lead-scanner/deploy/install.sh
+```
+
+The script asks for your Apollo API key and a username and password for the site, then adds a service on `127.0.0.1:3010`, an Nginx site for `leads.aligned-tech.com` and an HTTPS certificate. It doesn't touch other Nginx sites. Use `DOMAIN=other.example.com PORT=3011 sudo -E bash ...` to change the defaults.
+
+- Update: `bash ~/lead-scanner/deploy/update.sh`
+- Remove: `sudo bash ~/lead-scanner/deploy/uninstall.sh`
+- Logs: `sudo journalctl -u lead-scanner -n 50`
+
+### What works on which Apollo plan
+
+| Feature | Free / trial | Paid |
+|---|---|---|
+| **Import from Apollo**: scan the companies and contacts saved in your account | ✅ | ✅ |
+| Search Apollo for companies | ❌ | ✅ |
+| Find decision makers, reveal emails, add contacts to lists | ❌ | ✅ |
+
+The page checks your plan and only shows what works.
+
+## Connect Apollo with a Cloudflare Worker (alternative)
+
+Only needed if you host the page on GitHub Pages instead of your own server.
 
 Lead Scanner can work with your Apollo account:
 
