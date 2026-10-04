@@ -91,6 +91,11 @@ fi
 if [[ -z "$(env_get SESSION_SECRET)" ]]; then
   env_set SESSION_SECRET "$(openssl rand -hex 32)"
 fi
+NEW_DEPLOY_TOKEN=""
+if [[ -z "$(env_get DEPLOY_TOKEN)" ]]; then
+  NEW_DEPLOY_TOKEN="$(openssl rand -hex 32)"
+  env_set DEPLOY_TOKEN "$NEW_DEPLOY_TOKEN"
+fi
 
 say "Setting up the background service"
 cat > "$UNIT" <<UNIT_EOF
@@ -106,9 +111,11 @@ WorkingDirectory=$APP_DIR/server
 EnvironmentFile=$ENV_FILE
 Environment=PORT=$PORT
 Environment=HOST=127.0.0.1
-ExecStart=$NODE_BIN $APP_DIR/server/server.js
-Restart=on-failure
-RestartSec=3
+# boot.js runs the newest direct deploy (/var/lib/lead-scanner/current) or this copy.
+ExecStart=$NODE_BIN $APP_DIR/server/boot.js
+# Always: a direct deploy exits the process on purpose to restart into the new version.
+Restart=always
+RestartSec=2
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
@@ -142,7 +149,7 @@ server {
     server_name __DOMAIN__;
 
     add_header X-Robots-Tag "noindex, nofollow" always;
-    client_max_body_size 1m;
+    client_max_body_size 20m;
 
     location / {
         proxy_pass http://127.0.0.1:__PORT__;
@@ -158,9 +165,10 @@ SITE_EOF
   # Only listen on IPv6 if Nginx already does (avoids a failed config test on IPv4-only hosts).
   ss -ltnH 'sport = :80' | grep -q '\[' || sed -i '/listen \[::\]:80;/d' "$SITE"
 fi
-# Sign-in now happens in the app, so drop the old browser-popup login (this site file only).
+# Sign-in now happens in the app, so drop the old browser-popup login (this site file only),
+# and allow direct deploys (up to 20 MB).
 cp "$SITE" /tmp/lead-scanner-site.bak
-sed -i '/auth_basic/d' "$SITE"
+sed -i '/auth_basic/d; s/client_max_body_size 1m;/client_max_body_size 20m;/' "$SITE"
 ln -sf "$SITE" "$LINK"
 if ! nginx -t 2>/tmp/lead-scanner-nginx-test.txt; then
   cat /tmp/lead-scanner-nginx-test.txt
@@ -195,3 +203,9 @@ fi
 say "Done"
 echo "Open https://$DOMAIN and sign in with the username and password you chose."
 echo "To update later: bash $APP_DIR/deploy/update.sh"
+if [[ -n "$NEW_DEPLOY_TOKEN" ]]; then
+  echo
+  echo "Direct-deploy key (lets updates be sent straight to this server; keep it secret):"
+  echo "  $NEW_DEPLOY_TOKEN"
+  echo "Show it again later with: sudo grep DEPLOY_TOKEN $ENV_FILE"
+fi

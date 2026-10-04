@@ -3,7 +3,7 @@
 set -euo pipefail
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 git -C "$APP_DIR" pull --ff-only
-if ! sudo grep -q '^LOGIN_HASH=' /etc/lead-scanner.env 2>/dev/null || ! grep -q '^StateDirectory=' /etc/systemd/system/lead-scanner.service 2>/dev/null; then
+if ! sudo grep -q '^DEPLOY_TOKEN=' /etc/lead-scanner.env 2>/dev/null || ! grep -q 'boot.js' /etc/systemd/system/lead-scanner.service 2>/dev/null; then
   echo "This update needs a one-time setup step. Run: sudo bash $APP_DIR/deploy/install.sh"
   exit 0
 fi

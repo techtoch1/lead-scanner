@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { runRoute } from '../worker/apollo-proxy.js';
 import { createAuth } from './auth.js';
 import { createCrm } from './crm.js';
+import { createDeploy } from './deploy.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 3010);
@@ -22,6 +23,7 @@ const auth = createAuth(process.env);
 // systemd's StateDirectory= sets STATE_DIRECTORY (/var/lib/lead-scanner).
 const DATA_DIR = process.env.STATE_DIRECTORY || process.env.DATA_DIR || path.join(ROOT, 'data');
 const crm = createCrm({ dataDir: DATA_DIR, env });
+const deploy = createDeploy({ dataDir: DATA_DIR, token: process.env.DEPLOY_TOKEN || '', appRoot: ROOT });
 
 // Only these files are served; everything else in the folder (server code,
 // config) stays private. PUBLIC ones are reachable before signing in.
@@ -78,12 +80,12 @@ async function readForm(req) {
   return Object.fromEntries(new URLSearchParams(body));
 }
 
-async function readJson(req) {
+async function readJson(req, limit = MAX_BODY) {
   let size = 0;
   const chunks = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY) throw Object.assign(new Error('Request too large.'), { status: 413 });
+    if (size > limit) throw Object.assign(new Error('Request too large.'), { status: 413 });
     chunks.push(chunk);
   }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); }
@@ -104,6 +106,10 @@ const server = http.createServer(async (req, res) => {
       }
       if (auth.sessionUser(req)) return redirect(res, safeNext(searchParams.get('next')));
       return loginPage(res, { error: auth.configured ? '' : 'setup', next: searchParams.get('next') || '/' });
+    }
+    // Direct deploys use their own key instead of a sign-in (see deploy.js).
+    if (pathname === '/deploy' || pathname.startsWith('/deploy/')) {
+      return deploy.handle(req, res, pathname, readJson, send);
     }
     if (pathname === '/logout') {
       return redirect(res, '/login', { 'Set-Cookie': auth.clearCookie(req) });

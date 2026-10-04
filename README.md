@@ -45,10 +45,21 @@ sudo bash ~/lead-scanner/deploy/install.sh
 
 The script asks for your Apollo API key and a username and password for the sign-in page, then adds a service on `127.0.0.1:3010`, an Nginx site for `leads.aligned-tech.com` and an HTTPS certificate. It doesn't touch other Nginx sites. Use `DOMAIN=other.example.com PORT=3011 sudo -E bash ...` to change the defaults.
 
-- Update: `bash ~/lead-scanner/deploy/update.sh`
+- Update from GitHub: `bash ~/lead-scanner/deploy/update.sh`
+- Update directly, without GitHub (see below): `LEAD_SCANNER_DEPLOY_TOKEN=... node deploy/push.mjs "what changed"`
 - Change the username or password: `sudo bash ~/lead-scanner/deploy/install.sh` and answer `y` when it asks to replace the sign-in
 - Remove: `sudo bash ~/lead-scanner/deploy/uninstall.sh`
 - Logs: `sudo journalctl -u lead-scanner -n 50`
+
+### Direct deploys (no GitHub)
+
+The installer creates a deploy key (`DEPLOY_TOKEN` in `/etc/lead-scanner.env`; show it with `sudo grep DEPLOY_TOKEN /etc/lead-scanner.env`). With it, `deploy/push.mjs` sends the app files to `https://leads.aligned-tech.com/deploy`. The server:
+
+1. writes them to a new folder in `/var/lib/lead-scanner/releases/`,
+2. starts that version on a spare port and checks its sign-in page answers,
+3. only then switches `/var/lib/lead-scanner/current` to it and restarts into it.
+
+A version that fails the check is thrown away and the live site keeps running. The last 5 versions are kept; `node deploy/push.mjs --rollback` goes back one, `--status` shows what's live. Only the app's own files can be sent (HTML, images, `server/`, `worker/`, `deploy/`). Ten wrong keys block deploys for 30 minutes. Treat the deploy key like a server password: anyone with it can change the app.
 
 ### CRM
 
