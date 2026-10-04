@@ -50,11 +50,20 @@ The script asks for your Apollo API key and a username and password for the sign
 - Remove: `sudo bash ~/lead-scanner/deploy/uninstall.sh`
 - Logs: `sudo journalctl -u lead-scanner -n 50`
 
+### CRM
+
+On the server version, tick companies in the scanner results and press **Add to CRM**. The **CRM** tab lists them with a status (New, Contacted, Meeting, Proposal, Won, Lost), a follow-up date and notes, and can be filtered and exported to CSV. The data is stored in `/var/lib/lead-scanner/crm.json` on the server and shared by everyone who signs in.
+
+When a company is added, Lead Scanner fills in details without using Apollo credits:
+
+- **Apollo**: it looks the domain up among the accounts in your Apollo workspace, adds it as an account if it isn't there, and reads the account record. Reading and creating accounts work on free plans; Apollo can take a minute to fill in a newly added company, so use *Refresh company data* if fields are empty.
+- **The company's website**: title, description, social links, and the emails and phone numbers it lists.
+
 ### What works on which Apollo plan
 
 | Feature | Free / trial | Paid |
 |---|---|---|
-| **Import from Apollo**: scan the companies and contacts saved in your account | ✅ | ✅ |
+| **CRM company details**: employees, industry, revenue, founded, location, LinkedIn, phone, description, technologies (via Apollo accounts) | ✅ | ✅ |
 | Search Apollo for companies | ❌ | ✅ |
 | Find decision makers, reveal emails, add contacts to lists | ❌ | ✅ |
 

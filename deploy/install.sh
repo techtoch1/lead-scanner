@@ -7,6 +7,7 @@
 # What it adds (and nothing else):
 #   /etc/lead-scanner.env                     Apollo key + sign-in settings, root only
 #   /etc/systemd/system/lead-scanner.service  runs server/server.js on 127.0.0.1:3010
+#   /var/lib/lead-scanner/                    CRM data (crm.json)
 #   /etc/nginx/sites-available/lead-scanner.conf (+ link in sites-enabled)
 #   an HTTPS certificate for the domain, via certbot
 # It never edits other Nginx sites. If the Nginx config test fails, it removes
@@ -112,6 +113,9 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
+# CRM data lives in /var/lib/lead-scanner (the app can't write anywhere else).
+StateDirectory=lead-scanner
+StateDirectoryMode=0700
 
 [Install]
 WantedBy=multi-user.target

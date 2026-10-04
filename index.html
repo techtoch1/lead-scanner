@@ -172,6 +172,40 @@ body.apollo-on .apollo-only { display: revert; }
 .apollo-search-only { display: none !important; }
 body.apollo-on.apollo-search .apollo-search-only { display: revert !important; }
 body.server-mode #apollo-settings { display: none; }
+/* On the server with a free Apollo plan there's nothing to do in the Apollo panel. */
+body.server-mode:not(.apollo-search) #apollo-panel { display: none; }
+.crm-only { display: none !important; }
+body.server-mode .crm-only { display: revert !important; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 0 0 24px; }
+.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; color: var(--text-muted); padding: 10px 16px; margin-bottom: -1px; font: 700 15px var(--font-sans); }
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.tabs .count { font-weight: 400; margin-left: 4px; }
+td.pick, th.pick { width: 34px; padding-right: 0; }
+td.pick input, th.pick input { width: 16px; height: 16px; accent-color: var(--aligned-poseidon); }
+.in-crm { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--accent); border: 1px solid var(--accent); padding: 0 5px; vertical-align: 1px; }
+.crm-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.crm-stats button { background: var(--surface); color: var(--text); border: 1px solid var(--border); font: 400 13px var(--font-sans); padding: 6px 12px; }
+.crm-stats button b { margin-left: 4px; }
+.crm-stats button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+#crm-table tr.crm-row { cursor: pointer; }
+#crm-table tr.crm-row:hover td { background: var(--bg-subtle); }
+#crm-table select, #crm-table input[type=date] { padding: 5px 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 13px var(--font-sans); }
+.crm-name { font-weight: 700; display: block; }
+.crm-domain { font-size: 12px; color: var(--text-muted); }
+.crm-domain a { color: inherit; }
+tr.crm-detail > td { background: var(--bg-subtle); padding: 20px; }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+.detail-grid h3 { margin: 0 0 8px; font-size: 14px; color: var(--heading); }
+.detail-grid dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 13px; }
+.detail-grid dt { color: var(--text-muted); }
+.detail-grid dd { margin: 0; word-break: break-word; }
+.detail-grid p { font-size: 13px; margin: 0 0 8px; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tags span { font-size: 11px; background: var(--surface); border: 1px solid var(--border); padding: 1px 6px; }
+.notes-box textarea { min-height: 110px; font-family: var(--font-sans); font-size: 14px; }
+.detail-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 16px; }
+button.danger { border-color: var(--error); color: var(--error); background: transparent; }
+.muted { color: var(--text-muted); }
 .signout { display: none; margin-left: 16px; color: var(--accent); font-weight: 700; text-transform: none; letter-spacing: 0; }
 body.server-mode .signout { display: inline; }
 </style>
@@ -189,14 +223,16 @@ body.server-mode .signout { display: inline; }
   <h1>Lead Scanner</h1>
   <p class="lede">Paste websites, domains or email addresses. The scanner reads each domain's DNS records and shows which companies aren't on Google Workspace or Microsoft 365, and whose email can be spoofed.</p>
 
+  <nav class="tabs crm-only" role="tablist">
+    <button type="button" role="tab" id="tab-scanner" aria-selected="true">Scanner</button>
+    <button type="button" role="tab" id="tab-crm" aria-selected="false">CRM<span class="count" id="crm-count"></span></button>
+  </nav>
+
+  <div id="view-scanner">
   <section class="panel apollo" id="apollo-panel">
     <div class="apollo-head">
       <h2>Find companies in Apollo <span class="note" style="font-weight:400">(optional)</span></h2>
       <span class="conn" id="apollo-conn">Not connected</span>
-    </div>
-    <div class="row apollo-only" style="margin-top:12px">
-      <button type="button" id="ap-import">Import from Apollo</button>
-      <span class="note">Scans the companies and contacts saved in your Apollo account.</span>
     </div>
     <form id="apollo-search" class="apollo-only apollo-search-only">
       <div class="form-grid">
@@ -297,6 +333,7 @@ body.server-mode .signout { display: inline; }
       <div class="row" style="margin:0">
         <button class="secondary apollo-only apollo-search-only" id="find-people">Find decision makers for leads</button>
         <button class="secondary apollo-only apollo-search-only" id="push-apollo">Add revealed contacts to Apollo</button>
+        <button class="crm-only" id="add-crm" disabled>Add selected to CRM</button>
         <button class="secondary" id="export-leads">Export leads (CSV)</button>
         <button class="secondary" id="export-all">Export all (CSV)</button>
       </div>
@@ -304,9 +341,31 @@ body.server-mode .signout { display: inline; }
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Domain</th><th>Status</th><th>Mail provider</th><th>Email security</th><th>MX records</th><th>Notes</th><th class="apollo-only">Decision makers</th><th>Source</th></tr>
+          <tr><th class="pick crm-only"><input type="checkbox" id="pick-all" aria-label="Select all shown"></th><th>Domain</th><th>Status</th><th>Mail provider</th><th>Email security</th><th>MX records</th><th>Notes</th><th class="apollo-only">Decision makers</th><th>Source</th></tr>
         </thead>
-        <tbody id="results"><tr><td colspan="8" class="empty">No results yet. Add some domains and press Scan.</td></tr></tbody>
+        <tbody id="results"><tr><td colspan="9" class="empty">No results yet. Add some domains and press Scan.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+  </div>
+
+  <section id="view-crm" hidden>
+    <h2>CRM</h2>
+    <p class="note" style="margin-top:0">Companies you added from the scanner. Click a company for details and notes. Company details come from your Apollo accounts and the company's website, without using Apollo credits.</p>
+    <div class="crm-stats" id="crm-stats"></div>
+    <div class="toolbar">
+      <div class="filters">
+        <input type="search" id="crm-search" placeholder="Search companies, industry, notes" aria-label="Search CRM">
+      </div>
+      <div class="row" style="margin:0">
+        <button class="secondary" id="crm-export">Export CRM (CSV)</button>
+      </div>
+    </div>
+    <p class="msg" id="crm-msg"></p>
+    <div class="table-wrap">
+      <table id="crm-table">
+        <thead><tr><th>Company</th><th>Status</th><th>Employees</th><th>Industry</th><th>Location</th><th>Email setup</th><th>Follow-up</th><th>Added</th></tr></thead>
+        <tbody id="crm-body"><tr><td colspan="8" class="empty">Nothing in the CRM yet. Tick companies in the scanner and press "Add selected to CRM".</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -316,7 +375,7 @@ body.server-mode .signout { display: inline; }
     "Review" means the domain sits behind an email security gateway and its SPF record doesn't show which mailbox provider is behind it.
     Email security: <strong>At risk</strong> means no DMARC or SPF (or a broken one), <strong>Weak</strong> means records exist but don't block spoofed mail (DMARC p=none, SPF ?all), <strong>Good</strong> means SPF plus an enforced DMARC policy.
     DKIM is checked on common selectors only, so "not found" isn't proof it's missing.
-    Apollo: finding companies and decision makers uses no Apollo credits for the people search; each "Reveal email" uses 1 credit, and company search may use credits depending on your plan.
+    CRM company details come from the accounts in your Apollo workspace (companies you add are saved there as accounts) and from each company's own website; neither uses Apollo credits.
   </footer>
 </div>
 
@@ -631,20 +690,23 @@ body.server-mode .signout { display: inline; }
 
   function render() {
     renderStats();
+    updatePickUi();
     const list = visibleRows();
     if (!rows.length) {
-      $('results').innerHTML = '<tr><td colspan="8" class="empty">No results yet. Add some domains and press Scan.</td></tr>';
+      $('results').innerHTML = '<tr><td colspan="9" class="empty">No results yet. Add some domains and press Scan.</td></tr>';
       return;
     }
     if (!list.length) {
-      $('results').innerHTML = '<tr><td colspan="8" class="empty">Nothing matches this filter.</td></tr>';
+      $('results').innerHTML = '<tr><td colspan="9" class="empty">Nothing matches this filter.</td></tr>';
       return;
     }
     $('results').innerHTML = list.map(r => {
       const s = statusOf(r.c);
       const mx = r.data ? r.data.mx.map(m => `${m.pref} ${m.host}`).join('<br>') : '';
       return `<tr>
-        <td><strong>${esc(r.domain)}</strong>${companyLine(r.domain)}</td>
+        <td class="pick crm-only">${r.c && r.c.kind !== 'error' && r.c.kind !== 'free'
+          ? `<input type="checkbox" data-pick="${esc(r.domain)}" ${picked.has(r.domain) ? 'checked' : ''} aria-label="Select ${esc(r.domain)}">` : ''}</td>
+        <td><strong>${esc(r.domain)}</strong>${crmItems.has(r.domain) ? '<span class="in-crm">In CRM</span>' : ''}${companyLine(r.domain)}</td>
         <td><span class="pill ${s}">${STATUS_LABEL[s]}</span></td>
         <td>${r.c ? esc(r.c.provider) : ''}</td>
         <td>${r.sec ? `<span class="pill ${r.sec.grade}">${GRADE_LABEL[r.sec.grade]}</span><span class="sec-detail">${esc(r.sec.spfLabel)} · ${esc(r.sec.dmarcLabel)}<br>${esc(r.sec.dkimLabel)}</span>` : (r.c ? '—' : '')}</td>
@@ -675,7 +737,7 @@ body.server-mode .signout { display: inline; }
 
     const myRun = ++runId;
     rows = [...parsed].map(([domain, sources]) => ({ domain, sources, data: null, c: null, sec: null,
-      people: savedPeople.has(domain) ? savedPeople.get(domain).map(p => ({ ...p })) : null }));
+      people: null }));
     filter = 'all';
     render();
 
@@ -769,7 +831,6 @@ body.server-mode .signout { display: inline; }
   let serverMode = false;
   let canSearch = false;  // paid Apollo plans only
   const companyInfo = new Map(); // domain -> company details from Apollo
-  const savedPeople = new Map(); // domain -> contacts saved in Apollo
 
   function companyLine(domain) {
     const c = companyInfo.get(domain);
@@ -852,42 +913,6 @@ body.server-mode .signout { display: inline; }
       const res = await fetch('api/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       return res.ok && (await res.json()).ok === true;
     } catch (e) { return false; }
-  }
-
-  async function fetchAllPages(path, key, label) {
-    const out = [];
-    for (let page = 1; page <= 50; page++) {
-      setApolloMsg(`Importing ${label}, page ${page}…`);
-      const res = await apolloCall(path, { page });
-      out.push(...res[key]);
-      if (!res[key].length || page >= (res.total_pages || 1)) break;
-    }
-    return out;
-  }
-
-  async function importFromApollo() {
-    $('ap-import').disabled = true;
-    try {
-      const companies = await fetchAllPages('/saved-accounts', 'companies', 'saved companies');
-      const contacts = await fetchAllPages('/saved-contacts', 'contacts', 'saved contacts');
-      companies.forEach(c => companyInfo.set(c.domain, c));
-      savedPeople.clear();
-      contacts.forEach(c => {
-        if (!companyInfo.has(c.domain) && c.organization_name) companyInfo.set(c.domain, { name: c.organization_name, domain: c.domain });
-        if (!savedPeople.has(c.domain)) savedPeople.set(c.domain, []);
-        savedPeople.get(c.domain).push({ ...c, saved: true });
-      });
-      const domains = [...new Set([...companies.map(c => c.domain), ...contacts.map(c => c.domain)])];
-      if (!domains.length) { setApolloMsg('Nothing to import: no saved companies or contacts with a website in Apollo.', true); return; }
-      setApolloMsg(`Imported ${companies.length} companies and ${contacts.length} contacts (${domains.length} domains). Scanning them now.`);
-      $('input').value = domains.join('\n');
-      updateParsedCount();
-      scan();
-    } catch (e) {
-      setApolloMsg('Import failed: ' + e.message, true);
-    } finally {
-      $('ap-import').disabled = false;
-    }
   }
 
   async function saveApollo() {
@@ -1017,7 +1042,6 @@ body.server-mode .signout { display: inline; }
     applyApolloState();
   });
   $('apollo-search').addEventListener('submit', searchApollo);
-  $('ap-import').addEventListener('click', importFromApollo);
   $('find-people').addEventListener('click', findPeopleForLeads);
   $('push-apollo').addEventListener('click', pushToApollo);
   $('results').addEventListener('click', e => {
@@ -1033,8 +1057,305 @@ body.server-mode .signout { display: inline; }
     if (found) {
       serverMode = true;
       apolloCfg = { url: 'api', password: '' };
+      loadCrm();
+      let view = 'scanner';
+      try { view = sessionStorage.getItem('lead-scanner-view') || 'scanner'; } catch (e) { /* ignore */ }
+      showView(view);
     }
     if (apolloCfg) checkCapabilities();
+  });
+
+  // ---- CRM (server only) -----------------------------------------------------
+  const crmItems = new Map();   // domain -> record from the server
+  const picked = new Set();     // domains ticked in the scanner
+  let crmStatuses = ['New', 'Contacted', 'Meeting', 'Proposal', 'Won', 'Lost'];
+  let crmFilter = 'all';
+  let crmOpen = null;           // domain whose details are shown
+
+  async function crmCall(name, body) {
+    const res = await fetch('api/crm/' + name, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    if (res.status === 401) { location.href = '/login'; throw new Error('Signed out.'); }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Server error ' + res.status);
+    return data;
+  }
+  const setCrmMsg = (text, isErr) => { $('crm-msg').textContent = text; $('crm-msg').className = 'msg' + (isErr ? ' err' : ''); };
+
+  function updatePickUi() {
+    for (const d of [...picked]) if (!rows.some(r => r.domain === d)) picked.delete(d);
+    const n = picked.size;
+    $('add-crm').disabled = !n;
+    $('add-crm').textContent = n ? `Add ${n} to CRM` : 'Add selected to CRM';
+    const pickable = visibleRows().filter(r => r.c && r.c.kind !== 'error' && r.c.kind !== 'free');
+    $('pick-all').checked = pickable.length > 0 && pickable.every(r => picked.has(r.domain));
+    $('pick-all').indeterminate = !$('pick-all').checked && pickable.some(r => picked.has(r.domain));
+  }
+
+  function scanSummary(r) {
+    return {
+      status: STATUS_LABEL[statusOf(r.c)], provider: r.c.provider,
+      grade: r.sec ? GRADE_LABEL[r.sec.grade] : '', spoofable: r.sec ? r.sec.spoofable : false,
+      issues: [r.c.note].concat(r.sec ? r.sec.issues : []).filter(Boolean).join(' '),
+      mx: r.data ? r.data.mx.map(m => `${m.pref} ${m.host}`).join(' | ') : '',
+    };
+  }
+
+  async function addPickedToCrm() {
+    const chosen = rows.filter(r => picked.has(r.domain) && r.c);
+    if (!chosen.length) return;
+    $('add-crm').disabled = true;
+    try {
+      const res = await crmCall('add', { items: chosen.map(r => ({ domain: r.domain, name: (companyInfo.get(r.domain) || {}).name || '', scan: scanSummary(r) })) });
+      res.items.forEach(it => crmItems.set(it.domain, it));
+      picked.clear();
+      render(); renderCrm();
+      const already = chosen.length - res.added.length;
+      setApolloMsg('');
+      $('progress-text').textContent = `Added ${res.added.length} to the CRM${already ? ` (${already} already there, email results updated)` : ''}. Getting company details…`;
+      await enrichMany(res.added);
+      $('progress-text').textContent = `Added ${res.added.length} to the CRM${already ? ` (${already} already there)` : ''}. Open the CRM tab to see them.`;
+    } catch (e) {
+      $('progress-text').textContent = 'Couldn\'t add to the CRM: ' + e.message;
+    } finally {
+      updatePickUi();
+    }
+  }
+
+  async function enrichOne(domain) {
+    const it = crmItems.get(domain);
+    if (it) { it._loading = true; renderCrm(); }
+    try {
+      const res = await crmCall('enrich', { domain });
+      crmItems.set(domain, res.item);
+    } catch (e) {
+      if (it) it._error = e.message;
+    }
+    const cur = crmItems.get(domain);
+    if (cur) delete cur._loading;
+    renderCrm();
+  }
+
+  async function enrichMany(domains) {
+    let i = 0;
+    const worker = async () => { while (i < domains.length) await enrichOne(domains[i++]); };
+    await Promise.all([worker(), worker()]);
+  }
+
+  async function loadCrm() {
+    try {
+      const res = await crmCall('list', {});
+      crmStatuses = res.statuses || crmStatuses;
+      crmItems.clear();
+      res.items.forEach(it => crmItems.set(it.domain, it));
+      renderCrm(); render();
+    } catch (e) { setCrmMsg('Couldn\'t load the CRM: ' + e.message, true); }
+  }
+
+  const fmtDate = iso => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+  const fmtEmployees = n => (n == null || n === '' ? '' : Number(n).toLocaleString());
+  const GRADE_PILL = { 'At risk': 'bad', Weak: 'weak', Good: 'good' };
+
+  function crmVisible() {
+    const q = $('crm-search').value.trim().toLowerCase();
+    return [...crmItems.values()].filter(it => {
+      if (crmFilter !== 'all' && it.status !== crmFilter) return false;
+      if (!q) return true;
+      const a = it.apollo || {};
+      return [it.domain, it.name, a.name, a.industry, a.city, a.country, it.notes, it.scan && it.scan.provider]
+        .some(v => v && String(v).toLowerCase().includes(q));
+    });
+  }
+
+  function renderCrmStats() {
+    const counts = { all: crmItems.size };
+    crmStatuses.forEach(st => { counts[st] = 0; });
+    crmItems.forEach(it => { counts[it.status] = (counts[it.status] || 0) + 1; });
+    $('crm-stats').innerHTML = ['all', ...crmStatuses].map(k =>
+      `<button type="button" data-crm-filter="${esc(k)}" aria-pressed="${crmFilter === k}">${k === 'all' ? 'All' : esc(k)}<b>${counts[k] || 0}</b></button>`).join('');
+    $('crm-count').textContent = crmItems.size ? `(${crmItems.size})` : '';
+  }
+
+  function link(url, text) {
+    if (!url) return '';
+    const href = /^https?:\/\//i.test(url) ? url : 'https://' + url;
+    return `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(text || url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''))}</a>`;
+  }
+
+  function detailHtml(it) {
+    const a = it.apollo || {}, w = it.web || {}, sc = it.scan || {};
+    const row = (k, v) => (v ? `<dt>${esc(k)}</dt><dd>${v}</dd>` : '');
+    const tags = arr => (arr && arr.length ? `<div class="tags">${arr.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : '');
+    const growth = a.headcountGrowth12m == null ? '' : `${a.headcountGrowth12m > 0 ? '+' : ''}${Math.round(a.headcountGrowth12m * 100)}% in 12 months`;
+    const apolloBody = a.error ? `<p class="muted">${esc(a.error)}</p>` : (it.apollo ? `
+        ${a.note ? `<p class="muted">${esc(a.note)}</p>` : ''}
+        <dl>
+          ${row('Employees', esc(fmtEmployees(a.employees)))}${row('Headcount', esc(growth))}
+          ${row('Industry', esc([a.industry].concat((a.industries || []).filter(x => x !== a.industry)).filter(Boolean).join(', ')))}
+          ${row('Revenue', esc(a.revenue))}${row('Founded', esc(a.founded || ''))}${row('Funding', esc(a.funding))}
+          ${row('Location', esc([a.city, a.country].filter(Boolean).join(', ')))}
+          ${row('Phone', a.phone ? `<a href="tel:${esc(a.phone)}">${esc(a.phone)}</a>` : '')}
+          ${row('LinkedIn', link(a.linkedin, 'Company page'))}
+        </dl>
+        ${a.description ? `<p style="margin-top:8px">${esc(a.description)}</p>` : ''}
+        ${a.technologies && a.technologies.length ? `<p class="muted" style="margin:8px 0 4px">Technologies</p>${tags([...new Set(a.technologies)])}` : ''}
+        ${a.keywords && a.keywords.length ? `<p class="muted" style="margin:8px 0 4px">Keywords</p>${tags(a.keywords)}` : ''}`
+      : '<p class="muted">Not fetched yet.</p>');
+    const socials = w.socials ? Object.entries(w.socials).map(([k, v]) => link(v, { linkedin: 'LinkedIn', instagram: 'Instagram', facebook: 'Facebook', x: 'X', whatsapp: 'WhatsApp' }[k] || k)).join(' · ') : '';
+    const webBody = w.error ? `<p class="muted">${esc(w.error)}</p>` : (it.web ? `
+        <dl>
+          ${row('Website', link(w.url))}${row('Title', esc(w.title))}
+          ${row('Social', socials)}
+          ${row('Emails', (w.emails || []).map(e => `<a href="mailto:${esc(e)}">${esc(e)}</a>`).join('<br>'))}
+          ${row('Phones', (w.phones || []).map(ph => `<a href="tel:${esc(ph)}">${esc(ph)}</a>`).join('<br>'))}
+          ${row('Built with', esc(w.builtWith))}
+        </dl>
+        ${w.description ? `<p style="margin-top:8px">${esc(w.description)}</p>` : ''}`
+      : '<p class="muted">Not fetched yet.</p>');
+    return `<div class="detail-grid">
+      <div><h3>Company (Apollo)</h3>${apolloBody}</div>
+      <div><h3>Website</h3>${webBody}</div>
+      <div><h3>Email setup</h3><dl>
+          ${row('Scanner', esc(sc.status))}${row('Provider', esc(sc.provider))}${row('Security', esc(sc.grade))}
+          ${row('Spoofable', sc.grade ? (sc.spoofable ? 'Yes' : 'No') : '')}${row('MX', esc(sc.mx))}
+        </dl>${sc.issues ? `<p style="margin-top:8px">${esc(sc.issues)}</p>` : ''}
+        ${sc.scannedAt ? `<p class="muted">Scanned ${esc(fmtDate(sc.scannedAt))}</p>` : ''}</div>
+      <div class="notes-box"><h3>Notes</h3>
+        <textarea data-notes="${esc(it.domain)}" placeholder="Calls, meetings, who you spoke to…">${esc(it.notes || '')}</textarea>
+        <p class="muted" data-notes-state="${esc(it.domain)}">${it.updatedAt ? 'Last updated ' + esc(fmtDate(it.updatedAt)) : ''}</p></div>
+    </div>
+    <div class="detail-actions">
+      <button type="button" class="secondary" data-crm-act="refresh" data-domain="${esc(it.domain)}" ${it._loading ? 'disabled' : ''}>${it._loading ? 'Refreshing…' : 'Refresh company data'}</button>
+      <button type="button" class="danger" data-crm-act="remove" data-domain="${esc(it.domain)}">Remove from CRM</button>
+      <span class="muted">Added ${esc(fmtDate(it.addedAt))}${it.addedBy ? ' by ' + esc(it.addedBy) : ''}</span>
+    </div>`;
+  }
+
+  function renderCrm() {
+    if (!$('crm-body')) return;
+    renderCrmStats();
+    const list = crmVisible();
+    if (!crmItems.size) {
+      $('crm-body').innerHTML = '<tr><td colspan="8" class="empty">Nothing in the CRM yet. Tick companies in the scanner and press "Add selected to CRM".</td></tr>';
+      return;
+    }
+    if (!list.length) { $('crm-body').innerHTML = '<tr><td colspan="8" class="empty">Nothing matches.</td></tr>'; return; }
+    // Keep a notes box being typed in from being redrawn under the cursor.
+    const typing = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.notes;
+    if (typing && crmOpen === typing) return;
+    $('crm-body').innerHTML = list.map(it => {
+      const a = it.apollo || {}, sc = it.scan || {};
+      const name = it.name || a.name || it.domain;
+      const employees = it._loading && !it.apollo ? '…' : fmtEmployees(a.employees);
+      const open = crmOpen === it.domain;
+      return `<tr class="crm-row" data-crm-row="${esc(it.domain)}" aria-expanded="${open}">
+          <td><span class="crm-name">${esc(name)}</span><span class="crm-domain">${link(it.domain, it.domain)}</span>${it._error ? `<br><span class="note" style="color:var(--error)">${esc(it._error)}</span>` : ''}</td>
+          <td><select data-crm-status="${esc(it.domain)}" aria-label="Status">${crmStatuses.map(st => `<option ${st === it.status ? 'selected' : ''}>${esc(st)}</option>`).join('')}</select></td>
+          <td>${esc(employees)}</td>
+          <td>${esc(a.industry || '')}</td>
+          <td>${esc([a.city, a.country].filter(Boolean).join(', '))}</td>
+          <td>${esc(sc.provider || '')}${sc.grade ? `<br><span class="pill ${GRADE_PILL[sc.grade] || ''}">${esc(sc.grade)}</span>` : ''}</td>
+          <td><input type="date" data-crm-follow="${esc(it.domain)}" value="${esc(it.followUp || '')}" aria-label="Follow-up date"></td>
+          <td class="muted">${esc(fmtDate(it.addedAt))}</td>
+        </tr>${open ? `<tr class="crm-detail"><td colspan="8">${detailHtml(it)}</td></tr>` : ''}`;
+    }).join('');
+  }
+
+  async function crmUpdate(domain, fields) {
+    try {
+      const res = await crmCall('update', { domain, ...fields });
+      const prev = crmItems.get(domain) || {};
+      crmItems.set(domain, { ...res.item, _loading: prev._loading });
+      return true;
+    } catch (e) { setCrmMsg('Couldn\'t save: ' + e.message, true); return false; }
+  }
+
+  function exportCrm() {
+    const list = crmVisible();
+    if (!list.length) { alert('Nothing to export.'); return; }
+    const header = ['Company', 'Domain', 'Status', 'Follow-up', 'Notes', 'Employees', 'Industry', 'Revenue', 'Founded', 'City', 'Country',
+      'Company phone', 'Company LinkedIn', 'Description', 'Website emails', 'Website phones', 'Instagram', 'Facebook',
+      'Mail provider', 'Email security', 'Can be spoofed', 'Email issues', 'Added', 'Added by'];
+    const lines = [header.join(',')].concat(list.map(it => {
+      const a = it.apollo || {}, w = it.web || {}, sc = it.scan || {}, so = w.socials || {};
+      return [it.name || a.name || '', it.domain, it.status, it.followUp, it.notes, a.employees ?? '', a.industry, a.revenue, a.founded ?? '',
+        a.city, a.country, a.phone, a.linkedin || so.linkedin || '', a.description, (w.emails || []).join(' | '), (w.phones || []).join(' | '),
+        so.instagram || '', so.facebook || '', sc.provider, sc.grade, sc.grade ? (sc.spoofable ? 'Yes' : 'No') : '', sc.issues,
+        (it.addedAt || '').slice(0, 10), it.addedBy || ''].map(csvCell).join(',');
+    }));
+    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const el = document.createElement('a');
+    el.href = URL.createObjectURL(blob);
+    el.download = `lead-scanner-crm-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(el); el.click();
+    setTimeout(() => { URL.revokeObjectURL(el.href); el.remove(); }, 0);
+  }
+
+  function showView(view) {
+    const crm = view === 'crm';
+    $('view-scanner').hidden = crm;
+    $('view-crm').hidden = !crm;
+    $('tab-scanner').setAttribute('aria-selected', String(!crm));
+    $('tab-crm').setAttribute('aria-selected', String(crm));
+    try { sessionStorage.setItem('lead-scanner-view', view); } catch (e) { /* ignore */ }
+    if (crm) renderCrm();
+  }
+
+  $('tab-scanner').addEventListener('click', () => showView('scanner'));
+  $('tab-crm').addEventListener('click', () => showView('crm'));
+  $('add-crm').addEventListener('click', addPickedToCrm);
+  $('crm-export').addEventListener('click', exportCrm);
+  $('crm-search').addEventListener('input', renderCrm);
+  $('results').addEventListener('change', e => {
+    const d = e.target.dataset && e.target.dataset.pick;
+    if (!d) return;
+    e.target.checked ? picked.add(d) : picked.delete(d);
+    updatePickUi();
+  });
+  $('pick-all').addEventListener('change', e => {
+    visibleRows().filter(r => r.c && r.c.kind !== 'error' && r.c.kind !== 'free')
+      .forEach(r => (e.target.checked ? picked.add(r.domain) : picked.delete(r.domain)));
+    render();
+  });
+  $('crm-stats').addEventListener('click', e => {
+    const b = e.target.closest('[data-crm-filter]');
+    if (!b) return;
+    crmFilter = b.dataset.crmFilter;
+    renderCrm();
+  });
+  $('crm-body').addEventListener('click', async e => {
+    const act = e.target.closest('[data-crm-act]');
+    if (act) {
+      const d = act.dataset.domain;
+      if (act.dataset.crmAct === 'refresh') enrichOne(d);
+      if (act.dataset.crmAct === 'remove' && confirm(`Remove ${d} from the CRM? Its notes will be deleted.`)) {
+        try { await crmCall('remove', { domain: d }); crmItems.delete(d); crmOpen = null; renderCrm(); render(); }
+        catch (err) { setCrmMsg('Couldn\'t remove: ' + err.message, true); }
+      }
+      return;
+    }
+    if (e.target.closest('select, input, textarea, a, button')) return;
+    const row = e.target.closest('[data-crm-row]');
+    if (!row) return;
+    crmOpen = crmOpen === row.dataset.crmRow ? null : row.dataset.crmRow;
+    renderCrm();
+  });
+  $('crm-body').addEventListener('change', async e => {
+    const t = e.target.dataset || {};
+    if (t.crmStatus) { if (await crmUpdate(t.crmStatus, { status: e.target.value })) renderCrm(); }
+    if (t.crmFollow !== undefined && t.crmFollow) { if (await crmUpdate(t.crmFollow, { followUp: e.target.value })) renderCrm(); }
+  });
+  // Notes save when you click away from the box.
+  $('crm-body').addEventListener('focusout', async e => {
+    const d = e.target.dataset && e.target.dataset.notes;
+    if (!d) return;
+    const it = crmItems.get(d);
+    if (!it || it.notes === e.target.value) return;
+    const state = document.querySelector(`[data-notes-state="${CSS.escape(d)}"]`);
+    if (state) state.textContent = 'Saving…';
+    if (await crmUpdate(d, { notes: e.target.value })) {
+      const st = document.querySelector(`[data-notes-state="${CSS.escape(d)}"]`);
+      if (st) st.textContent = 'Saved';
+    }
   });
 
   // ---- Wiring --------------------------------------------------------------

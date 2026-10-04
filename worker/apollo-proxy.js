@@ -90,11 +90,11 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
-async function apollo(env, path, payload) {
+export async function apollo(env, path, payload, method = 'POST') {
   const res = await fetch(APOLLO + path, {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'X-Api-Key': env.APOLLO_API_KEY },
-    body: JSON.stringify(payload),
+    body: method === 'GET' ? undefined : JSON.stringify(payload || {}),
   });
   const text = await res.text();
   let data;
@@ -112,7 +112,7 @@ async function apollo(env, path, payload) {
 const list = v => (Array.isArray(v) ? v : String(v || '').split(','))
   .map(s => String(s).trim()).filter(Boolean).slice(0, 50);
 const clampInt = (v, lo, hi, dflt) => Math.min(hi, Math.max(lo, Number.parseInt(v, 10) || dflt));
-const cleanDomain = d => String(d || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[/?#]/)[0];
+export const cleanDomain = d => String(d || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[/?#]/)[0];
 
 // Free and trial plans can't call the search endpoints (Apollo answers 403
 // API_INACCESSIBLE). People API Search costs no credits, so it's a safe probe.

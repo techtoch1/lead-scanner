@@ -12,12 +12,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runRoute } from '../worker/apollo-proxy.js';
 import { createAuth } from './auth.js';
+import { createCrm } from './crm.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 3010);
 const HOST = process.env.HOST || '127.0.0.1';
 const env = { APOLLO_API_KEY: process.env.APOLLO_API_KEY || '' };
 const auth = createAuth(process.env);
+// systemd's StateDirectory= sets STATE_DIRECTORY (/var/lib/lead-scanner).
+const DATA_DIR = process.env.STATE_DIRECTORY || process.env.DATA_DIR || path.join(ROOT, 'data');
+const crm = createCrm({ dataDir: DATA_DIR, env });
 
 // Only these files are served; everything else in the folder (server code,
 // config) stays private. PUBLIC ones are reachable before signing in.
@@ -115,6 +119,16 @@ const server = http.createServer(async (req, res) => {
       if (req.method !== 'POST') return send(res, 405, { error: 'Use POST.' });
       // Browsers can't send JSON cross-site without a preflight, which this server never approves.
       if (!/^application\/json\b/i.test(req.headers['content-type'] || '')) return send(res, 415, { error: 'Send JSON.' });
+      if (pathname.startsWith('/api/crm/')) {
+        const name = pathname.slice(9).replace(/\/+$/, '');
+        const handler = Object.prototype.hasOwnProperty.call(crm.routes, name) ? crm.routes[name] : null;
+        if (!handler) return send(res, 404, { error: 'Unknown route.' });
+        try {
+          return send(res, 200, await handler(auth.sessionUser(req), await readJson(req)));
+        } catch (e) {
+          return send(res, e.status && e.status < 500 ? e.status : 502, { error: e.message });
+        }
+      }
       if (!env.APOLLO_API_KEY) return send(res, 500, { error: 'APOLLO_API_KEY is not set on the server.' });
       const result = await runRoute(env, pathname.slice(5).replace(/\/+$/, ''), await readJson(req));
       return send(res, result.status, result.body);
