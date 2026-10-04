@@ -1,5 +1,7 @@
 # Lead Scanner
 
+**Live tool:** https://techtoch1.github.io/lead-scanner/
+
 Paste websites, domains or email addresses and see which companies **aren't** using Google Workspace or Microsoft 365 for email. Those are your leads.
 
 ## How it works
