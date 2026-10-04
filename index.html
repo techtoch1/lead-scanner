@@ -132,6 +132,12 @@ tbody tr:last-child td { border-bottom: 0; }
 .pill.review { color: var(--review); background: var(--review-bg); }
 .pill.error { color: var(--error); background: var(--error-bg); }
 .pill.pending { color: var(--text-muted); background: var(--bg-subtle); }
+.pill.bad { color: var(--error); background: var(--error-bg); }
+.pill.weak { color: var(--lead); background: var(--lead-bg); }
+.pill.good { color: var(--pro); background: var(--pro-bg); }
+.sec-detail { display: block; margin-top: 4px; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.toolbar select { padding: 9px 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 14px var(--font-sans); }
+.filters { display: flex; flex-wrap: wrap; gap: 12px; flex: 1; }
 .empty { padding: 32px; text-align: center; color: var(--text-muted); }
 .note { font-size: 13px; color: var(--text-muted); }
 footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
@@ -148,7 +154,7 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
   </header>
 
   <h1>Lead Scanner</h1>
-  <p class="lede">Paste websites, domains or email addresses. The scanner reads each domain's MX and SPF records and shows which companies aren't on Google Workspace or Microsoft 365.</p>
+  <p class="lede">Paste websites, domains or email addresses. The scanner reads each domain's DNS records and shows which companies aren't on Google Workspace or Microsoft 365, and whose email can be spoofed.</p>
 
   <div class="grid">
     <section class="panel">
@@ -180,7 +186,16 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
     <h2>3. Results</h2>
     <div class="stats" id="stats"></div>
     <div class="toolbar">
-      <input type="search" id="search" placeholder="Filter by domain or provider" aria-label="Filter results">
+      <div class="filters">
+        <input type="search" id="search" placeholder="Filter by domain or provider" aria-label="Filter results">
+        <select id="sec-filter" aria-label="Filter by email security">
+          <option value="all">Email security: all</option>
+          <option value="spoofable">Can be spoofed</option>
+          <option value="bad">At risk</option>
+          <option value="weak">Weak</option>
+          <option value="good">Good</option>
+        </select>
+      </div>
       <div class="row" style="margin:0">
         <button class="secondary" id="export-leads">Export leads (CSV)</button>
         <button class="secondary" id="export-all">Export all (CSV)</button>
@@ -189,9 +204,9 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Domain</th><th>Status</th><th>Mail provider</th><th>MX records</th><th>Notes</th><th>Source</th></tr>
+          <tr><th>Domain</th><th>Status</th><th>Mail provider</th><th>Email security</th><th>MX records</th><th>Notes</th><th>Source</th></tr>
         </thead>
-        <tbody id="results"><tr><td colspan="6" class="empty">No results yet. Add some domains and press Scan.</td></tr></tbody>
+        <tbody id="results"><tr><td colspan="7" class="empty">No results yet. Add some domains and press Scan.</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -199,6 +214,8 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
   <footer>
     DNS lookups run from your browser through Google Public DNS (Cloudflare as fallback). Nothing you enter is stored anywhere.
     "Review" means the domain sits behind an email security gateway and its SPF record doesn't show which mailbox provider is behind it.
+    Email security: <strong>At risk</strong> means no DMARC or SPF (or a broken one), <strong>Weak</strong> means records exist but don't block spoofed mail (DMARC p=none, SPF ?all), <strong>Good</strong> means SPF plus an enforced DMARC policy.
+    DKIM is checked on common selectors only, so "not found" isn't proof it's missing.
   </footer>
 </div>
 
@@ -319,9 +336,18 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
 
   const TYPE_MX = 15, TYPE_TXT = 16;
 
+  // TXT records arrive quoted and sometimes split into several strings.
+  const txtValues = res => (res && res.Answer || [])
+    .filter(a => a.type === TYPE_TXT)
+    .map(a => a.data.replace(/"\s*"/g, '').replace(/"/g, '').trim());
+
   async function lookup(domain) {
-    const [mxRes, txtRes] = await Promise.all([dns(domain, 'MX'), dns(domain, 'TXT').catch(() => null)]);
-    const result = { nxdomain: mxRes.Status === 3, mx: [], spf: '' };
+    const [mxRes, txtRes, dmarcRes] = await Promise.all([
+      dns(domain, 'MX'),
+      dns(domain, 'TXT').catch(() => null),
+      dns('_dmarc.' + domain, 'TXT').catch(() => null),
+    ]);
+    const result = { nxdomain: mxRes.Status === 3, mx: [], spf: '', spfCount: 0, dmarc: '', dmarcFailed: !dmarcRes, txtFailed: !txtRes, dkim: null };
     result.mx = (mxRes.Answer || [])
       .filter(a => a.type === TYPE_MX)
       .map(a => {
@@ -329,15 +355,82 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
         return { pref: Number(pref), host: (host || '').toLowerCase().replace(/\.$/, '') };
       })
       .sort((a, b) => a.pref - b.pref);
-    if (txtRes) {
-      const spf = (txtRes.Answer || [])
-        .filter(a => a.type === TYPE_TXT)
-        .map(a => a.data.replace(/"\s*"/g, '').replace(/"/g, ''))
-        .find(t => /^v=spf1\b/i.test(t.trim()));
-      result.spf = spf ? spf.trim() : '';
-    }
+    const spfs = txtValues(txtRes).filter(t => /^v=spf1(\s|$)/i.test(t));
+    result.spf = spfs[0] || '';
+    result.spfCount = spfs.length;
+    result.dmarc = txtValues(dmarcRes).find(t => /^v=DMARC1\s*(;|$)/i.test(t)) || '';
     return result;
   }
+
+  // DKIM keys live at <selector>._domainkey.<domain>, and the selector can be
+  // anything, so we can only probe the usual ones. Provider-specific selectors
+  // first; the common list only if those find nothing.
+  const DKIM_BY_PROVIDER = {
+    google: ['google'], microsoft: ['selector1', 'selector2'], zoho: ['zoho', 'zmail'],
+    titan: ['titan1'], amazon: ['amazonses'], mailgun: ['mg', 'k1'], fastmail: ['fm1', 'fm2'], proton: ['protonmail'],
+  };
+  const DKIM_COMMON = ['default', 'mail', 'dkim', 'selector1', 'google', 'k1', 's1', 's2', 'key1'];
+
+  async function probeDkim(domain, providerId) {
+    const first = DKIM_BY_PROVIDER[providerId] || [];
+    const rest = DKIM_COMMON.filter(s => !first.includes(s));
+    for (const batch of [first, rest]) {
+      const hits = await Promise.all(batch.map(async sel => {
+        const res = await dns(`${sel}._domainkey.${domain}`, 'TXT').catch(() => null);
+        // A key with an empty p= has been revoked, so it doesn't count.
+        return txtValues(res).some(t => /(^|;)\s*p=[A-Za-z0-9+/]/.test(t)) ? sel : null;
+      }));
+      const found = hits.filter(Boolean);
+      if (found.length) return found;
+    }
+    return [];
+  }
+
+  // ---- Email security ------------------------------------------------------
+  // grade: 'bad' = at risk, 'weak', 'good'. spoofable = anyone can send mail
+  // that passes as this domain (no enforced DMARC policy).
+  function assessSecurity(data) {
+    const issues = [];
+    let grade = 'good';
+    const worse = g => { if (g === 'bad' || (g === 'weak' && grade === 'good')) grade = g; };
+
+    let spfLabel;
+    if (data.txtFailed) { spfLabel = 'SPF ?'; issues.push('SPF lookup failed.'); }
+    else if (!data.spfCount) { spfLabel = 'No SPF'; worse('bad'); issues.push('No SPF record: no list of servers allowed to send for this domain.'); }
+    else {
+      const all = (data.spf.match(/(^|\s)([-~?+]?)all(\s|$)/i) || [])[2];
+      if (all === '-') spfLabel = 'SPF -all';
+      else if (all === '~') spfLabel = 'SPF ~all';
+      else if (all === '+' || all === '') { spfLabel = 'SPF +all'; worse('bad'); issues.push('SPF ends in +all, which allows every server on the internet to send as this domain.'); }
+      else if (all === '?') { spfLabel = 'SPF ?all'; worse('weak'); issues.push('SPF ends in ?all (neutral), so it blocks nothing.'); }
+      else if (/redirect=/i.test(data.spf)) spfLabel = 'SPF redirect';
+      else { spfLabel = 'SPF no all'; worse('weak'); issues.push('SPF has no "all" rule, so it blocks nothing.'); }
+      if (data.spfCount > 1) { worse('bad'); issues.push(`${data.spfCount} SPF records found. Only one is allowed, so receivers treat SPF as broken.`); }
+    }
+
+    let dmarcLabel, dmarcPolicy = '';
+    if (data.dmarcFailed) { dmarcLabel = 'DMARC ?'; issues.push('DMARC lookup failed.'); }
+    else if (!data.dmarc) { dmarcLabel = 'No DMARC'; dmarcPolicy = 'missing'; worse('bad'); issues.push('No DMARC record: the domain can be spoofed.'); }
+    else {
+      dmarcPolicy = ((data.dmarc.match(/(^|;)\s*p\s*=\s*(\w+)/i) || [])[2] || 'invalid').toLowerCase();
+      dmarcLabel = 'DMARC ' + dmarcPolicy;
+      if (dmarcPolicy === 'none') { worse('weak'); issues.push('DMARC is p=none (monitoring only), so spoofed mail is still delivered.'); }
+      else if (dmarcPolicy !== 'quarantine' && dmarcPolicy !== 'reject') { worse('bad'); issues.push('DMARC record has no valid policy.'); }
+      const pct = Number((data.dmarc.match(/(^|;)\s*pct\s*=\s*(\d+)/i) || [])[2] || 100);
+      if (pct < 100 && dmarcPolicy !== 'none') { worse('weak'); issues.push(`DMARC only applies to ${pct}% of mail.`); }
+      if (!/(^|;)\s*rua\s*=/i.test(data.dmarc)) issues.push('DMARC has no rua= address, so nobody gets reports.');
+    }
+
+    // Not finding DKIM on common selectors doesn't prove it's missing, so it
+    // never changes the grade on its own.
+    let dkimLabel = 'DKIM ?';
+    if (data.dkim && data.dkim.length) dkimLabel = 'DKIM ✓';
+    else if (data.dkim) { dkimLabel = 'DKIM not found'; issues.push('No DKIM key found on common selectors (it may use a custom one).'); }
+
+    const spoofable = !data.dmarcFailed && (dmarcPolicy === 'missing' || dmarcPolicy === 'none' || dmarcPolicy === 'invalid');
+    return { grade, spoofable, spfLabel, dmarcLabel, dmarcPolicy, dkimLabel, issues };
+  }
+  const GRADE_LABEL = { bad: 'At risk', weak: 'Weak', good: 'Good' };
 
   // ---- Classification ------------------------------------------------------
   const hostMatches = (host, suffixes) => suffixes.some(s => host === s || host.endsWith('.' + s));
@@ -427,6 +520,8 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
     return rows.filter(r => {
       const s = statusOf(r.c);
       if (filter !== 'all' && s !== filter) return false;
+      const sf = $('sec-filter').value;
+      if (sf !== 'all' && (!r.sec || (sf === 'spoofable' ? !r.sec.spoofable : r.sec.grade !== sf))) return false;
       if (!q) return true;
       return r.domain.includes(q) || (r.c && r.c.provider.toLowerCase().includes(q));
     });
@@ -436,11 +531,11 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
     renderStats();
     const list = visibleRows();
     if (!rows.length) {
-      $('results').innerHTML = '<tr><td colspan="6" class="empty">No results yet. Add some domains and press Scan.</td></tr>';
+      $('results').innerHTML = '<tr><td colspan="7" class="empty">No results yet. Add some domains and press Scan.</td></tr>';
       return;
     }
     if (!list.length) {
-      $('results').innerHTML = '<tr><td colspan="6" class="empty">Nothing matches this filter.</td></tr>';
+      $('results').innerHTML = '<tr><td colspan="7" class="empty">Nothing matches this filter.</td></tr>';
       return;
     }
     $('results').innerHTML = list.map(r => {
@@ -450,8 +545,9 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
         <td><strong>${esc(r.domain)}</strong></td>
         <td><span class="pill ${s}">${STATUS_LABEL[s]}</span></td>
         <td>${r.c ? esc(r.c.provider) : ''}</td>
+        <td>${r.sec ? `<span class="pill ${r.sec.grade}">${GRADE_LABEL[r.sec.grade]}</span><span class="sec-detail">${esc(r.sec.spfLabel)} · ${esc(r.sec.dmarcLabel)}<br>${esc(r.sec.dkimLabel)}</span>` : (r.c ? '—' : '')}</td>
         <td class="mono">${mx ? mx.split('<br>').map(esc).join('<br>') : (r.data ? '—' : '')}</td>
-        <td class="note">${r.c ? esc(r.c.note) : ''}</td>
+        <td class="note">${r.c ? esc([r.c.note].concat(r.sec ? r.sec.issues : []).filter(Boolean).join(' ')) : ''}</td>
         <td class="src">${esc(r.sources.join(', '))}</td>
       </tr>`;
     }).join('');
@@ -475,7 +571,7 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
     if (!parsed.size) { $('progress-text').textContent = 'No valid domains or emails found.'; return; }
 
     const myRun = ++runId;
-    rows = [...parsed].map(([domain, sources]) => ({ domain, sources, data: null, c: null }));
+    rows = [...parsed].map(([domain, sources]) => ({ domain, sources, data: null, c: null, sec: null }));
     filter = 'all';
     render();
 
@@ -501,6 +597,11 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
           try {
             row.data = await lookup(row.domain);
             row.c = classify(row.domain, row.data);
+            // Free-mail and dead domains aren't the lead's own, so skip the security checks.
+            if (row.c.kind !== 'error') {
+              row.data.dkim = await probeDkim(row.domain, row.c.providerId);
+              row.sec = assessSecurity(row.data);
+            }
           } catch (e) {
             row.c = { kind: 'error', provider: '—', note: 'Lookup failed: ' + e.message };
           }
@@ -533,11 +634,15 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
   function exportCsv(onlyLeads) {
     const list = rows.filter(r => r.c && (!onlyLeads || statusOf(r.c) === 'lead'));
     if (!list.length) { alert(onlyLeads ? 'No leads to export yet.' : 'Nothing to export yet.'); return; }
-    const header = ['Domain', 'Status', 'Mail provider', 'MX records', 'SPF', 'Notes', 'Source'];
+    const header = ['Domain', 'Status', 'Mail provider', 'Email security', 'Can be spoofed', 'DMARC policy', 'DKIM selectors found',
+      'Security issues', 'MX records', 'SPF record', 'DMARC record', 'Notes', 'Source'];
     const lines = [header.join(',')].concat(list.map(r => [
       r.domain, STATUS_LABEL[statusOf(r.c)], r.c.provider,
+      r.sec ? GRADE_LABEL[r.sec.grade] : '', r.sec ? (r.sec.spoofable ? 'Yes' : 'No') : '',
+      r.sec ? r.sec.dmarcPolicy : '', r.data && r.data.dkim ? r.data.dkim.join(' | ') : '',
+      r.sec ? r.sec.issues.join(' ') : '',
       r.data ? r.data.mx.map(m => `${m.pref} ${m.host}`).join(' | ') : '',
-      r.data ? r.data.spf : '', r.c.note, r.sources.join(' | ')
+      r.data ? r.data.spf : '', r.data ? r.data.dmarc || '' : '', r.c.note, r.sources.join(' | ')
     ].map(csvCell).join(',')));
     const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
@@ -592,6 +697,7 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
     render();
   });
   $('search').addEventListener('input', render);
+  $('sec-filter').addEventListener('change', render);
   $('export-leads').addEventListener('click', () => exportCsv(true));
   $('export-all').addEventListener('click', () => exportCsv(false));
 
