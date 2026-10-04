@@ -1,0 +1,10 @@
+# Optional: deploy from the command line with `npx wrangler deploy` (run inside this folder).
+# Secrets are set separately and never stored here:
+#   npx wrangler secret put APOLLO_API_KEY
+#   npx wrangler secret put ACCESS_PASSWORD
+name = "lead-scanner-apollo"
+main = "apollo-proxy.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+ALLOWED_ORIGIN = "https://techtoch1.github.io"

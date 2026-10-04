@@ -124,6 +124,7 @@ table { border-collapse: collapse; width: 100%; font-size: 14px; background: var
 th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { background: var(--bg-subtle); font-weight: 700; white-space: nowrap; position: sticky; top: 0; }
 td.mono { font-family: var(--font-mono); font-size: 12px; word-break: break-all; }
+td.note { min-width: 260px; }
 td.src { color: var(--text-muted); font-size: 13px; word-break: break-all; }
 tbody tr:last-child td { border-bottom: 0; }
 .pill { display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
@@ -141,6 +142,33 @@ tbody tr:last-child td { border-bottom: 0; }
 .empty { padding: 32px; text-align: center; color: var(--text-muted); }
 .note { font-size: 13px; color: var(--text-muted); }
 footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
+
+.apollo { margin-bottom: 24px; }
+.apollo-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; }
+.apollo-head h2 { margin: 0; }
+.conn { font-size: 13px; color: var(--text-muted); }
+.conn.on::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--pro); margin-right: 6px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 16px; }
+.field label, .field .label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.field input[type=text], .field input[type=url], .field input[type=password], .field select {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 14px var(--font-sans);
+}
+.sizes { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; }
+.sizes label { display: flex; gap: 6px; align-items: center; font-weight: 400; margin: 0; }
+.sizes input { accent-color: var(--aligned-poseidon); }
+details.settings { margin-top: 12px; }
+details.settings summary { cursor: pointer; font-size: 14px; color: var(--accent); font-weight: 700; }
+.msg { font-size: 13px; margin: 10px 0 0; min-height: 1em; }
+.msg.err { color: var(--error); }
+.company { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.people { list-style: none; margin: 0; padding: 0; font-size: 13px; min-width: 220px; }
+.people li { padding: 3px 0; }
+.people .title { color: var(--text-muted); }
+.people a { color: var(--accent); }
+button.link { background: none; border: 0; padding: 0; color: var(--accent); font: 700 12px var(--font-sans); text-decoration: underline; cursor: pointer; }
+button.link:disabled { color: var(--text-muted); text-decoration: none; }
+.apollo-only { display: none; }
+body.apollo-on .apollo-only { display: revert; }
 </style>
 </head>
 <body>
@@ -155,6 +183,67 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
 
   <h1>Lead Scanner</h1>
   <p class="lede">Paste websites, domains or email addresses. The scanner reads each domain's DNS records and shows which companies aren't on Google Workspace or Microsoft 365, and whose email can be spoofed.</p>
+
+  <section class="panel apollo" id="apollo-panel">
+    <div class="apollo-head">
+      <h2>Find companies in Apollo <span class="note" style="font-weight:400">(optional)</span></h2>
+      <span class="conn" id="apollo-conn">Not connected</span>
+    </div>
+    <form id="apollo-search" class="apollo-only">
+      <div class="form-grid">
+        <div class="field">
+          <label for="ap-locations">Locations</label>
+          <input type="text" id="ap-locations" placeholder="Dubai, Beirut, Qatar">
+        </div>
+        <div class="field">
+          <label for="ap-keywords">Industry keywords</label>
+          <input type="text" id="ap-keywords" placeholder="restaurants, real estate, clinics">
+        </div>
+        <div class="field">
+          <label for="ap-pages">How many companies</label>
+          <select id="ap-pages">
+            <option value="1">Up to 100</option>
+            <option value="2">Up to 200</option>
+            <option value="3">Up to 300</option>
+            <option value="5">Up to 500</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" style="margin-top:16px">
+        <span class="label">Company size (employees)</span>
+        <div class="sizes" id="ap-sizes">
+          <label><input type="checkbox" value="1,10" checked> 1–10</label>
+          <label><input type="checkbox" value="11,50" checked> 11–50</label>
+          <label><input type="checkbox" value="51,200" checked> 51–200</label>
+          <label><input type="checkbox" value="201,500"> 201–500</label>
+          <label><input type="checkbox" value="501,1000"> 501–1,000</label>
+          <label><input type="checkbox" value="1001,1000000"> 1,000+</label>
+        </div>
+      </div>
+      <div class="row">
+        <button type="submit" id="ap-go">Search Apollo and scan</button>
+      </div>
+    </form>
+    <p class="msg" id="apollo-msg"></p>
+    <details class="settings" id="apollo-settings">
+      <summary>Apollo connection settings</summary>
+      <p class="note">Connects through your own Cloudflare Worker, which holds the Apollo API key. Setup steps are in the <a href="https://github.com/techtoch1/lead-scanner#connect-apollo">README</a>. The Worker address and password are saved in this browser only.</p>
+      <div class="form-grid">
+        <div class="field">
+          <label for="ap-url">Worker address</label>
+          <input type="url" id="ap-url" placeholder="https://lead-scanner-apollo.yourname.workers.dev" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="ap-pw">Password</label>
+          <input type="password" id="ap-pw" autocomplete="current-password">
+        </div>
+      </div>
+      <div class="row">
+        <button type="button" id="ap-save">Save and test</button>
+        <button type="button" class="secondary" id="ap-forget">Disconnect</button>
+      </div>
+    </details>
+  </section>
 
   <div class="grid">
     <section class="panel">
@@ -197,6 +286,8 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
         </select>
       </div>
       <div class="row" style="margin:0">
+        <button class="secondary apollo-only" id="find-people">Find decision makers for leads</button>
+        <button class="secondary apollo-only" id="push-apollo">Add revealed contacts to Apollo</button>
         <button class="secondary" id="export-leads">Export leads (CSV)</button>
         <button class="secondary" id="export-all">Export all (CSV)</button>
       </div>
@@ -204,18 +295,19 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Domain</th><th>Status</th><th>Mail provider</th><th>Email security</th><th>MX records</th><th>Notes</th><th>Source</th></tr>
+          <tr><th>Domain</th><th>Status</th><th>Mail provider</th><th>Email security</th><th>MX records</th><th>Notes</th><th class="apollo-only">Decision makers</th><th>Source</th></tr>
         </thead>
-        <tbody id="results"><tr><td colspan="7" class="empty">No results yet. Add some domains and press Scan.</td></tr></tbody>
+        <tbody id="results"><tr><td colspan="8" class="empty">No results yet. Add some domains and press Scan.</td></tr></tbody>
       </table>
     </div>
   </section>
 
   <footer>
-    DNS lookups run from your browser through Google Public DNS (Cloudflare as fallback). Nothing you enter is stored anywhere.
+    DNS lookups run from your browser through Google Public DNS (Cloudflare as fallback). The domains you scan aren't stored anywhere. Only your provider ticks and Apollo connection settings are saved, in this browser.
     "Review" means the domain sits behind an email security gateway and its SPF record doesn't show which mailbox provider is behind it.
     Email security: <strong>At risk</strong> means no DMARC or SPF (or a broken one), <strong>Weak</strong> means records exist but don't block spoofed mail (DMARC p=none, SPF ?all), <strong>Good</strong> means SPF plus an enforced DMARC policy.
     DKIM is checked on common selectors only, so "not found" isn't proof it's missing.
+    Apollo: finding companies and decision makers uses no Apollo credits for the people search; each "Reveal email" uses 1 credit, and company search may use credits depending on your plan.
   </footer>
 </div>
 
@@ -523,7 +615,8 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
       const sf = $('sec-filter').value;
       if (sf !== 'all' && (!r.sec || (sf === 'spoofable' ? !r.sec.spoofable : r.sec.grade !== sf))) return false;
       if (!q) return true;
-      return r.domain.includes(q) || (r.c && r.c.provider.toLowerCase().includes(q));
+      const co = companyInfo.get(r.domain);
+      return r.domain.includes(q) || (r.c && r.c.provider.toLowerCase().includes(q)) || (co && co.name.toLowerCase().includes(q));
     });
   }
 
@@ -531,23 +624,24 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
     renderStats();
     const list = visibleRows();
     if (!rows.length) {
-      $('results').innerHTML = '<tr><td colspan="7" class="empty">No results yet. Add some domains and press Scan.</td></tr>';
+      $('results').innerHTML = '<tr><td colspan="8" class="empty">No results yet. Add some domains and press Scan.</td></tr>';
       return;
     }
     if (!list.length) {
-      $('results').innerHTML = '<tr><td colspan="7" class="empty">Nothing matches this filter.</td></tr>';
+      $('results').innerHTML = '<tr><td colspan="8" class="empty">Nothing matches this filter.</td></tr>';
       return;
     }
     $('results').innerHTML = list.map(r => {
       const s = statusOf(r.c);
       const mx = r.data ? r.data.mx.map(m => `${m.pref} ${m.host}`).join('<br>') : '';
       return `<tr>
-        <td><strong>${esc(r.domain)}</strong></td>
+        <td><strong>${esc(r.domain)}</strong>${companyLine(r.domain)}</td>
         <td><span class="pill ${s}">${STATUS_LABEL[s]}</span></td>
         <td>${r.c ? esc(r.c.provider) : ''}</td>
         <td>${r.sec ? `<span class="pill ${r.sec.grade}">${GRADE_LABEL[r.sec.grade]}</span><span class="sec-detail">${esc(r.sec.spfLabel)} · ${esc(r.sec.dmarcLabel)}<br>${esc(r.sec.dkimLabel)}</span>` : (r.c ? '—' : '')}</td>
         <td class="mono">${mx ? mx.split('<br>').map(esc).join('<br>') : (r.data ? '—' : '')}</td>
         <td class="note">${r.c ? esc([r.c.note].concat(r.sec ? r.sec.issues : []).filter(Boolean).join(' ')) : ''}</td>
+        <td class="apollo-only">${peopleCell(r)}</td>
         <td class="src">${esc(r.sources.join(', '))}</td>
       </tr>`;
     }).join('');
@@ -571,7 +665,7 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
     if (!parsed.size) { $('progress-text').textContent = 'No valid domains or emails found.'; return; }
 
     const myRun = ++runId;
-    rows = [...parsed].map(([domain, sources]) => ({ domain, sources, data: null, c: null, sec: null }));
+    rows = [...parsed].map(([domain, sources]) => ({ domain, sources, data: null, c: null, sec: null, people: null }));
     filter = 'all';
     render();
 
@@ -635,14 +729,16 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
     const list = rows.filter(r => r.c && (!onlyLeads || statusOf(r.c) === 'lead'));
     if (!list.length) { alert(onlyLeads ? 'No leads to export yet.' : 'Nothing to export yet.'); return; }
     const header = ['Domain', 'Status', 'Mail provider', 'Email security', 'Can be spoofed', 'DMARC policy', 'DKIM selectors found',
-      'Security issues', 'MX records', 'SPF record', 'DMARC record', 'Notes', 'Source'];
+      'Security issues', 'MX records', 'SPF record', 'DMARC record', 'Notes', 'Source',
+      'Company', 'Industry', 'Employees', 'Location', 'Company LinkedIn', 'Company phone', 'Decision makers'];
     const lines = [header.join(',')].concat(list.map(r => [
       r.domain, STATUS_LABEL[statusOf(r.c)], r.c.provider,
       r.sec ? GRADE_LABEL[r.sec.grade] : '', r.sec ? (r.sec.spoofable ? 'Yes' : 'No') : '',
       r.sec ? r.sec.dmarcPolicy : '', r.data && r.data.dkim ? r.data.dkim.join(' | ') : '',
       r.sec ? r.sec.issues.join(' ') : '',
       r.data ? r.data.mx.map(m => `${m.pref} ${m.host}`).join(' | ') : '',
-      r.data ? r.data.spf : '', r.data ? r.data.dmarc || '' : '', r.c.note, r.sources.join(' | ')
+      r.data ? r.data.spf : '', r.data ? r.data.dmarc || '' : '', r.c.note, r.sources.join(' | '),
+      ...companyCols(r.domain), contactsText(r)
     ].map(csvCell).join(',')));
     const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
@@ -652,6 +748,218 @@ footer { margin-top: 40px; font-size: 13px; color: var(--text-muted); }
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   }
+
+  // ---- Apollo ----------------------------------------------------------------
+  // Talks to the Cloudflare Worker in /worker, which holds the API key.
+  const APOLLO_KEY = 'lead-scanner-apollo';
+  let apolloCfg = null;
+  try { apolloCfg = JSON.parse(localStorage.getItem(APOLLO_KEY) || 'null'); } catch (e) { /* ignore */ }
+  const companyInfo = new Map(); // domain -> company details from Apollo
+
+  function companyLine(domain) {
+    const c = companyInfo.get(domain);
+    if (!c) return '';
+    const bits = [c.industry, c.employees ? c.employees + ' staff' : '', c.location].filter(Boolean).join(' · ');
+    return `<span class="company">${esc(c.name)}${bits ? '<br>' + esc(bits) : ''}</span>`;
+  }
+  function companyCols(domain) {
+    const c = companyInfo.get(domain) || {};
+    return [c.name, c.industry, c.employees, c.location, c.linkedin, c.phone];
+  }
+  const fullName = p => [p.first_name, p.last_name].filter(Boolean).join(' ');
+  function contactsText(r) {
+    if (!Array.isArray(r.people)) return '';
+    return r.people.map(p => [fullName(p), p.title, p.email].filter(Boolean).join(' – ')).join(' | ');
+  }
+
+  function peopleCell(r) {
+    if (!r.c || r.c.kind === 'error' || r.c.kind === 'free') return '';
+    if (r.people === 'loading') return '<span class="note">Searching…</span>';
+    if (r.peopleError) return `<span class="note" style="color:var(--error)">${esc(r.peopleError)}</span> <button class="link" data-act="people" data-domain="${esc(r.domain)}">Retry</button>`;
+    if (r.people === null) return `<button class="link" data-act="people" data-domain="${esc(r.domain)}">Find</button>`;
+    if (!r.people.length) return '<span class="note">No matches in Apollo</span>';
+    return '<ul class="people">' + r.people.map((p, i) => {
+      let action;
+      if (p.email) action = `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>${p.email_status && p.email_status !== 'verified' ? ` <span class="note">(${esc(p.email_status)})</span>` : ''}`;
+      else if (p.revealing) action = '<span class="note">Revealing…</span>';
+      else if (p.revealed) action = '<span class="note">No email available</span>';
+      else action = `<button class="link" data-act="reveal" data-domain="${esc(r.domain)}" data-i="${i}">Reveal email (1 credit)</button>`;
+      if (p.error) action += ` <span class="note" style="color:var(--error)">${esc(p.error)}</span>`;
+      const name = p.linkedin ? `<a href="${esc(p.linkedin)}" target="_blank" rel="noopener">${esc(fullName(p))}</a>` : esc(fullName(p));
+      return `<li><strong>${name}</strong> <span class="title">${esc(p.title)}</span><br>${action}</li>`;
+    }).join('') + '</ul>';
+  }
+
+  async function apolloCall(path, body) {
+    if (!apolloCfg) throw new Error('Apollo isn\'t connected.');
+    let res;
+    try {
+      res = await fetch(apolloCfg.url.replace(/\/+$/, '') + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apolloCfg.password },
+        body: JSON.stringify(body || {}),
+      });
+    } catch (e) {
+      throw new Error('Can\'t reach the Worker. Check the address and its ALLOWED_ORIGIN setting.');
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Worker error ' + res.status);
+    return data;
+  }
+
+  function setApolloMsg(text, isErr) {
+    $('apollo-msg').textContent = text;
+    $('apollo-msg').className = 'msg' + (isErr ? ' err' : '');
+  }
+
+  function applyApolloState() {
+    const on = !!apolloCfg;
+    document.body.classList.toggle('apollo-on', on);
+    $('apollo-conn').textContent = on ? 'Connected' : 'Not connected';
+    $('apollo-conn').classList.toggle('on', on);
+    $('apollo-settings').open = !on;
+    if (on) { $('ap-url').value = apolloCfg.url; $('ap-pw').value = apolloCfg.password; }
+  }
+
+  async function saveApollo() {
+    const url = $('ap-url').value.trim(), password = $('ap-pw').value;
+    if (!/^https:\/\/\S+$/.test(url) || !password) { setApolloMsg('Enter the Worker address (https://…) and the password.', true); return; }
+    const prev = apolloCfg;
+    apolloCfg = { url, password };
+    setApolloMsg('Testing the connection…');
+    try {
+      await apolloCall('/ping', {});
+      try { localStorage.setItem(APOLLO_KEY, JSON.stringify(apolloCfg)); } catch (e) { /* ignore */ }
+      setApolloMsg('Connected to Apollo.');
+      applyApolloState();
+      render();
+    } catch (e) {
+      apolloCfg = prev;
+      setApolloMsg('Connection failed: ' + e.message, true);
+    }
+  }
+
+  async function searchApollo(ev) {
+    ev.preventDefault();
+    const locations = $('ap-locations').value, keywords = $('ap-keywords').value;
+    if (!locations.trim() && !keywords.trim()) { setApolloMsg('Add a location or an industry keyword.', true); return; }
+    const sizes = [...document.querySelectorAll('#ap-sizes input:checked')].map(i => i.value);
+    const pages = Number($('ap-pages').value);
+    $('ap-go').disabled = true;
+    const found = [];
+    let total = null;
+    try {
+      for (let page = 1; page <= pages; page++) {
+        setApolloMsg(`Searching Apollo, page ${page} of ${pages}…`);
+        const res = await apolloCall('/companies', { locations, keywords, sizes, page, per_page: 100 });
+        total = res.total;
+        res.companies.forEach(c => { companyInfo.set(c.domain, c); found.push(c.domain); });
+        if (!res.companies.length || (res.total_pages && page >= res.total_pages)) break;
+      }
+    } catch (e) {
+      setApolloMsg('Apollo search failed: ' + e.message, true);
+      $('ap-go').disabled = false;
+      if (!found.length) return;
+    }
+    $('ap-go').disabled = false;
+    if (!found.length) { setApolloMsg('Apollo found no companies with a website for that search.', true); return; }
+    setApolloMsg(`Found ${found.length} companies with a website${total ? ` (Apollo has ${total.toLocaleString()} matches)` : ''}. Scanning them now.`);
+    $('input').value = [...new Set(found)].join('\n');
+    updateParsedCount();
+    scan();
+  }
+
+  async function findPeopleFor(row) {
+    row.people = 'loading';
+    row.peopleError = '';
+    scheduleRender();
+    try {
+      const res = await apolloCall('/people', { domain: row.domain, limit: 3 });
+      row.people = res.people;
+    } catch (e) {
+      row.people = null;
+      row.peopleError = e.message;
+    }
+    scheduleRender();
+  }
+
+  async function findPeopleForLeads() {
+    const todo = rows.filter(r => statusOf(r.c) === 'lead' && r.c.kind !== 'free' && r.people === null);
+    if (!todo.length) { setApolloMsg('No leads left without decision makers. Scan some domains first.'); return; }
+    $('find-people').disabled = true;
+    let i = 0, done = 0;
+    const worker = async () => {
+      while (i < todo.length) {
+        await findPeopleFor(todo[i++]);
+        setApolloMsg(`Finding decision makers: ${++done} of ${todo.length}`);
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+    $('find-people').disabled = false;
+    setApolloMsg(`Done. Looked up decision makers for ${todo.length} lead${todo.length === 1 ? '' : 's'}.`);
+  }
+
+  async function reveal(row, i) {
+    const p = row.people[i];
+    p.revealing = true; p.error = '';
+    render();
+    try {
+      const res = await apolloCall('/reveal', { id: p.id });
+      Object.assign(p, { first_name: res.first_name || p.first_name, last_name: res.last_name || p.last_name,
+        title: res.title || p.title, email: res.email, email_status: res.email_status, linkedin: res.linkedin || p.linkedin });
+      p.revealed = true;
+    } catch (e) {
+      p.error = e.message;
+    }
+    p.revealing = false;
+    render();
+  }
+
+  async function pushToApollo() {
+    const contacts = [];
+    rows.forEach(r => Array.isArray(r.people) && r.people.forEach(p => {
+      if (!p.email) return;
+      const c = companyInfo.get(r.domain);
+      contacts.push({ first_name: p.first_name, last_name: p.last_name, email: p.email, title: p.title,
+        organization_name: c ? c.name : r.domain, domain: r.domain });
+    }));
+    if (!contacts.length) { setApolloMsg('No revealed emails yet. Use "Reveal email" on the people you want first.', true); return; }
+    const label = prompt(`Add ${contacts.length} contact${contacts.length === 1 ? '' : 's'} to which Apollo list?`, 'Lead Scanner ' + new Date().toISOString().slice(0, 10));
+    if (label === null) return;
+    $('push-apollo').disabled = true;
+    let created = 0, existing = 0;
+    try {
+      for (let k = 0; k < contacts.length; k += 100) {
+        const res = await apolloCall('/push', { contacts: contacts.slice(k, k + 100), label: label.trim() || 'Lead Scanner' });
+        created += res.created; existing += res.existing;
+      }
+      setApolloMsg(`Added to the "${label.trim() || 'Lead Scanner'}" list in Apollo: ${created} new contact${created === 1 ? '' : 's'}${existing ? `, ${existing} already existed` : ''}.`);
+    } catch (e) {
+      setApolloMsg('Adding to Apollo failed: ' + e.message, true);
+    }
+    $('push-apollo').disabled = false;
+  }
+
+  $('ap-save').addEventListener('click', saveApollo);
+  $('ap-forget').addEventListener('click', () => {
+    apolloCfg = null;
+    try { localStorage.removeItem(APOLLO_KEY); } catch (e) { /* ignore */ }
+    $('ap-pw').value = '';
+    setApolloMsg('Disconnected.');
+    applyApolloState();
+  });
+  $('apollo-search').addEventListener('submit', searchApollo);
+  $('find-people').addEventListener('click', findPeopleForLeads);
+  $('push-apollo').addEventListener('click', pushToApollo);
+  $('results').addEventListener('click', e => {
+    const b = e.target.closest('button[data-act]');
+    if (!b) return;
+    const row = rows.find(r => r.domain === b.dataset.domain);
+    if (!row) return;
+    if (b.dataset.act === 'people') findPeopleFor(row);
+    if (b.dataset.act === 'reveal') reveal(row, Number(b.dataset.i));
+  });
+  applyApolloState();
 
   // ---- Wiring --------------------------------------------------------------
   $('input').addEventListener('input', updateParsedCount);

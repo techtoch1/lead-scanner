@@ -34,6 +34,34 @@ Each domain also gets an **email security** grade:
 
 Results can be filtered, searched and exported to CSV (all, or leads only).
 
+## Connect Apollo
+
+Lead Scanner can work with your Apollo account:
+
+- **Find companies in Apollo** by location, industry keywords and size, then scan them automatically.
+- **Find decision makers** (owner, CEO, IT manager...) for each lead. Uses Apollo's People API Search, which costs no credits.
+- **Reveal email**, one person at a time. Each reveal costs **1 Apollo credit**, and nothing is revealed unless you click.
+- **Add revealed contacts to Apollo** under a list name you choose.
+
+The Apollo API key must never go in this page: the page and repo are public. It lives in a small Cloudflare Worker (`worker/apollo-proxy.js`) that only answers requests carrying your password.
+
+### Setup (about 10 minutes, free)
+
+1. **Get an Apollo API key.** In Apollo, open *Settings → Integrations → API* and create a key. If Apollo offers it, make it a **master key**; adding contacts needs one.
+2. **Create the Worker.** Sign up at [dash.cloudflare.com](https://dash.cloudflare.com) (free plan), then go to *Workers & Pages → Create → Create Worker*. Name it `lead-scanner-apollo` and click *Deploy*.
+3. **Paste the code.** Click *Edit code*, replace everything with the contents of [`worker/apollo-proxy.js`](worker/apollo-proxy.js), and click *Deploy*.
+4. **Add the settings.** In the Worker, open *Settings → Variables and Secrets* and add:
+   | Name | Type | Value |
+   |---|---|---|
+   | `APOLLO_API_KEY` | Secret | your Apollo API key |
+   | `ACCESS_PASSWORD` | Secret | a long password you make up |
+   | `ALLOWED_ORIGIN` | Text | `https://techtoch1.github.io` |
+5. **Connect the page.** Open Lead Scanner, expand *Apollo connection settings*, enter the Worker address (shown on the Worker's page, like `https://lead-scanner-apollo.<you>.workers.dev`) and the password, then click *Save and test*.
+
+Prefer the command line? Run `npx wrangler deploy` inside `worker/`, then `npx wrangler secret put APOLLO_API_KEY` and `npx wrangler secret put ACCESS_PASSWORD`.
+
+Share the password only with people who should use your Apollo credits. To cut someone off, change `ACCESS_PASSWORD` in Cloudflare.
+
 ## Running it
 
-It's a single static page with no server or build step. Open `index.html` in a browser, or host it anywhere static (it's published with GitHub Pages).
+The scanner is a single static page with no build step (Apollo features need the Worker above). Open `index.html` in a browser, or host it anywhere static (it's published with GitHub Pages).
